@@ -16,7 +16,6 @@ declare module "next-auth" {
     user: {
       id: string;
       // ...other properties
-      // role: UserRole;
     } & DefaultSession["user"];
   }
 
@@ -50,4 +49,5 @@ export const authConfig = {
     }),
   },
 } satisfies NextAuthConfig;
+
 

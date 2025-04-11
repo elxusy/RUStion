@@ -6,6 +6,7 @@
   "scripts": {
     "build": "next build",
     "check": "next lint && tsc --noEmit",
+    "db:start": "cd prisma && docker compose up",
     "db:generate": "prisma migrate dev",
     "db:migrate": "prisma migrate deploy",
     "db:push": "prisma db push",
@@ -30,6 +31,7 @@
     "@trpc/react-query": "^11.0.0",
     "@trpc/server": "^11.0.0",
     "@types/nodemailer": "^6.4.17",
+    "lucide-react": "^0.487.0",
     "next": "^15.2.3",
     "next-auth": "5.0.0-beta.25",
     "nodemailer": "^6.10.0",

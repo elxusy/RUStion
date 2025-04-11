@@ -2,81 +2,132 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider = "prisma-client-js"
+    provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
-  // NOTE: When using mysql or sqlserver, uncomment the @db.Text annotations in model Account below
-  // Further reading:
-  // https://next-auth.js.org/adapters/prisma#create-the-prisma-schema
-  // https://www.prisma.io/docs/reference/api-reference/prisma-schema-reference#string
-  url      = env("DATABASE_URL")
-}
-
-model Post {
-  id        Int      @id @default(autoincrement())
-  name      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  createdBy   User   @relation(fields: [createdById], references: [id])
-  createdById String
-
-  @@index([name])
+    provider = "postgresql"
+    // NOTE: When using mysql or sqlserver, uncomment the @db.Text annotations in model Account below
+    // Further reading:
+    // https://next-auth.js.org/adapters/prisma#create-the-prisma-schema
+    // https://www.prisma.io/docs/reference/api-reference/prisma-schema-reference#string
+    url      = env("DATABASE_URL")
 }
 
 // Necessary for Next auth
 model Account {
-  id                       String  @id @default(cuid())
-  userId                   String
-  type                     String
-  provider                 String
-  providerAccountId        String
-  refresh_token            String? // @db.Text
-  access_token             String? // @db.Text
-  expires_at               Int?
-  token_type               String?
-  scope                    String?
-  id_token                 String? // @db.Text
-  session_state            String?
-  user                     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  refresh_token_expires_in Int?
+    id                       String  @id @default(cuid())
+    userId                   String
+    type                     String
+    provider                 String
+    providerAccountId        String
+    refresh_token            String? // @db.Text
+    access_token             String? // @db.Text
+    expires_at               Int?
+    token_type               String?
+    scope                    String?
+    id_token                 String? // @db.Text
+    session_state            String?
+    user                     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+    refresh_token_expires_in Int?
 
-  @@unique([provider, providerAccountId])
+    @@unique([provider, providerAccountId])
 }
 
 model Session {
-  id           String   @id @default(cuid())
-  sessionToken String   @unique
-  userId       String
-  expires      DateTime
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String?   @unique
-  emailVerified DateTime?
-  image         String?
-  accounts      Account[]
-  sessions      Session[]
-  posts         Post[]
+    id           String   @id @default(cuid())
+    sessionToken String   @unique
+    userId       String
+    expires      DateTime
+    user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model VerificationToken {
-  identifier String
-  token      String   @unique
-  expires    DateTime
+    identifier String
+    token      String   @unique
+    expires    DateTime
 
-  @@unique([identifier, token])
+    @@unique([identifier, token])
 }
 
-model Document {
-  id        String   @id @default(cuid())
-  title     String
-  content   String   @default("")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+
+model User {
+    id            String    @id @default(cuid())
+    firstname     String?
+    surname       String?
+    name          String?
+    email         String?   @unique
+    emailVerified DateTime?
+    image         String?
+    accounts      Account[]
+    sessions      Session[]
+
+    group    Group?  @relation(fields: [groupId], references: [id])
+    groupId  String?
+    subgroup Int     @default(1)
+
+    studentTask StudentsOnTasks[]
+    tutorTask   Squad[]
+    grade       Grade[]
+
+    role    Role @default(USER)
 }
+
+model Group {
+    id    String @id @default(cuid())
+    name  String @unique
+    users User[]
+}
+
+// Лекции, лабы-пары, лабы-задания ...
+model TaskType {
+    id    String @id @default(cuid())
+    name  String @unique
+    tasks Task[]
+}
+
+model Task {
+    id    String @id @default(cuid())
+    name  String @unique
+    value Int    @default(1)
+
+    taskType   TaskType @relation(fields: [taskTypeId], references: [id])
+    taskTypeId String
+    squades    Squad[]
+    grades     Grade[]
+}
+
+model Squad {
+    id      String   @id @default(cuid())
+    task    Task     @relation(fields: [taskId], references: [id])
+    taskId  String
+    date    DateTime
+    tutor   User?    @relation(fields: [tutorId], references: [id])
+    tutorId String?
+
+    StudentsOnTasks StudentsOnTasks[]
+}
+
+model StudentsOnTasks {
+    student   User   @relation(fields: [studentId], references: [id])
+    studentId String
+    squad     Squad  @relation(fields: [squadId], references: [id], onDelete: Cascade)
+    squadId   String
+
+    @@id([studentId, squadId])
+}
+
+model Grade {
+    id        String @id @default(cuid())
+    task      Task   @relation(fields: [taskId], references: [id])
+    taskId    String
+    student   User   @relation(fields: [studentId], references: [id])
+    studentId String
+    value     Int
+}
+
+enum Role {
+   USER
+   TUTOR
+   ADMIN
+ }
