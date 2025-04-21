@@ -31,6 +31,7 @@
     "@trpc/react-query": "^11.0.0",
     "@trpc/server": "^11.0.0",
     "@types/nodemailer": "^6.4.17",
+    "clsx": "^2.1.1",
     "lucide-react": "^0.487.0",
     "next": "^15.2.3",
     "next-auth": "5.0.0-beta.25",
@@ -39,6 +40,7 @@
     "react-dom": "^19.0.0",
     "server-only": "^0.0.1",
     "superjson": "^2.2.1",
+    "tailwind-merge": "^2.6.0",
     "zod": "^3.24.2"
   },
   "devDependencies": {
@@ -50,6 +52,7 @@
     "autoprefixer": "^10.4.21",
     "eslint": "^9.23.0",
     "eslint-config-next": "^15.2.3",
+    "localtunnel": "^2.0.2",
     "postcss": "^8.5.3",
     "prettier": "^3.5.3",
     "prettier-plugin-tailwindcss": "^0.6.11",
