@@ -2,14 +2,25 @@
 
 import Link from 'next/link';
 import { useRef, useState, useEffect } from 'react';
-import DocumentList from './doclist';
+import { api } from '~/trpc/react';
+import { useRouter } from 'next/navigation';
 
 export default function ResizableSidebar() {
   const [sidebarWidth, setSidebarWidth] = useState(260);
   const [isResizing, setIsResizing] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
-  const [documents, setDocuments]=useState([]);
+  const router = useRouter();
+
+  const { data: documents, refetch: refetchDocuments } = api.document.getAll.useQuery(undefined, {
+    refetchOnWindowFocus: false,
+  });
+
+  const createDocument = api.document.create.useMutation({
+    onSuccess: () => {
+      void refetchDocuments();
+    },
+  });
 
   useEffect(() => {
     const savedSidebarState = localStorage.getItem('sidebarState');
@@ -24,13 +35,9 @@ export default function ResizableSidebar() {
     }
   }, []);
 
-  // const addNewDocument = () => {
-  //   const newDoc = {
-  //     id: (documents.length + 1).toString(),
-  //     title: `Документ ${documents.length + 1}`,
-  //   };
-  //   setDocuments((prev) => [...prev, newDoc]);
-  // };
+  const addNewDocument = () => {
+    createDocument.mutate({ title: 'Новый документ' });
+  };
 
   useEffect(() => {
     if (isCollapsed) {
@@ -70,7 +77,18 @@ export default function ResizableSidebar() {
       document.body.style.cursor = '';
     };
   }, [isResizing, isCollapsed]);
-  
+
+  const renderDocument = (doc: { id: string; title: string; children?: Array<{ id: string; title: string }> }) => (
+    <div key={doc.id} className="ml-4">
+      <Link 
+        href={`/document/${doc.id}`}
+        className="block hover:text-white text-zinc-300 py-1"
+      >
+        {doc.title}
+      </Link>
+      {doc.children?.map((child) => renderDocument(child))}
+    </div>
+  );
 
   return (
     <>
@@ -102,13 +120,15 @@ export default function ResizableSidebar() {
                 📋 Dashboard
               </Link>
               <button
-                // onClick={addNewDocument}
+                onClick={addNewDocument}
                 className="block w-full text-left hover:text-white text-zinc-300"
               >
                 ➕ Новый документ
               </button>
             </nav>
-            {/* <DocumentList documents={documents} /> */}
+            <div className="mt-4">
+              {documents?.map((doc: { id: string; title: string; children?: Array<{ id: string; title: string }> }) => renderDocument(doc))}
+            </div>
           </div>
         )}
         {!isCollapsed && (
