@@ -1,15 +1,6 @@
-import { auth } from "../server/auth";
-import { redirect } from "next/navigation";
-import { SignIn } from "../components/auth/SignIn";
+import { SignIn } from "../../../components/auth/SignIn";
 
-export default async function HomePage() {
-  const session = await auth();
-  
-  // Если пользователь авторизован, перенаправляем на страницу dashboard
-  if (session?.user) {
-    redirect("/dashboard");
-  }
-
+export default function SignInPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-900">
       <div className="w-full max-w-md space-y-8 rounded-lg bg-gray-800 p-6 shadow-lg">
@@ -22,4 +13,4 @@ export default async function HomePage() {
       </div>
     </div>
   );
-}
+} 
