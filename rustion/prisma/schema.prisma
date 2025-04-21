@@ -131,3 +131,17 @@ enum Role {
    TUTOR
    ADMIN
  }
+
+model Document {
+    id String @id @default(cuid())
+    title String
+    userId String
+    isArchived Boolean @default(false)
+    isPublished Boolean @default(false)
+    content String?
+    parentId String?
+    parent Document? @relation("DocumentToDocument", fields: [parentId], references: [id])
+    children Document[] @relation("DocumentToDocument")
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+}
