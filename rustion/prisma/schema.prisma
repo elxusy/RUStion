@@ -61,6 +61,7 @@ model User {
     image         String?
     accounts      Account[]
     sessions      Session[]
+    documents     Document[]
 
     group    Group?  @relation(fields: [groupId], references: [id])
     groupId  String?
@@ -131,3 +132,17 @@ enum Role {
    TUTOR
    ADMIN
  }
+
+model Document {
+    id        String   @id @default(cuid())
+    title     String
+    content   String?  @db.Text
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+    isPinned  Boolean  @default(false)
+    order     Int?
+    userId    String
+    user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@index([userId])
+}

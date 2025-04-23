@@ -1,30 +1,181 @@
 import React, { useState } from 'react';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { FileText, Pin } from 'lucide-react';
+import { type RouterOutputs } from "~/trpc/shared";
 
-type Document = {
-  id: string;
-  title: string;
-};
+type Document = RouterOutputs["document"]["getAll"][number];
 
-type DocumentListProps = {
+interface DocumentListProps {
   documents: Document[];
-};
+  onTogglePin: (docId: string) => void;
+  onReorder: (draggedId: string, targetId: string) => void;
+}
 
-const DocumentList: React.FC<DocumentListProps> = ({ documents }) => {
-  return (
-    <div className="space-y-2">
-      {documents.map((doc) => (
-        <Link
-          key={doc.id}
-          href={`/doc/${doc.id}`}
-          className="block hover:text-white text-zinc-300"
-        >
+const DocumentList: React.FC<DocumentListProps> = ({ documents, onTogglePin, onReorder }) => {
+  const router = useRouter();
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<{ id: string; position: 'top' | 'bottom' } | null>(null);
+
+  // Функция сортировки документов
+  const sortDocs = (a: Document, b: Document) => {
+    // Если у обоих есть order, сортируем по нему
+    if (a.order !== undefined && b.order !== undefined) {
+      return b.order - a.order;
+    }
+    // Если order есть только у одного, он идет первым
+    if (a.order !== undefined) return -1;
+    if (b.order !== undefined) return 1;
+    // Если ни у кого нет order, сортируем по дате создания
+    return b.createdAt.getTime() - a.createdAt.getTime();
+  };
+
+  // Разделяем и сортируем документы
+  const pinnedDocs = documents
+    .filter(doc => doc.isPinned)
+    .sort(sortDocs);
+
+  const unpinnedDocs = documents
+    .filter(doc => !doc.isPinned)
+    .sort(sortDocs);
+
+  const handleClick = (e: React.MouseEvent, docId: string) => {
+    if (e.buttons === 1) return;
+    router.push(`/doc/${docId}`);
+  };
+
+  const handleDragStart = (e: React.DragEvent, docId: string) => {
+    e.dataTransfer.setData('text/plain', docId);
+    setDraggedId(docId);
+  };
+
+  const handleDragOver = (e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    if (draggedId === targetId) {
+      setDropTarget(null);
+      return;
+    }
+
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const midPoint = rect.top + rect.height / 2;
+    const position = e.clientY < midPoint ? 'top' : 'bottom';
+    
+    setDropTarget({ id: targetId, position });
+  };
+
+  const handleDragLeave = () => {
+    setDropTarget(null);
+  };
+
+  const handleDrop = (e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    const draggedDocId = e.dataTransfer.getData('text/plain');
+    
+    if (draggedDocId === targetId) return;
+
+    const draggedDoc = documents.find(d => d.id === draggedDocId);
+    const targetDoc = documents.find(d => d.id === targetId);
+
+    if (!draggedDoc || !targetDoc) return;
+
+    // Если перетаскиваем между разными секциями, меняем статус закрепления
+    if (draggedDoc.isPinned !== targetDoc.isPinned) {
+      onReorder(draggedDocId, targetId);
+    } else {
+      // В пределах одной секции меняем порядок
+      const docs = draggedDoc.isPinned ? pinnedDocs : unpinnedDocs;
+      const draggedIndex = docs.findIndex(d => d.id === draggedDocId);
+      const targetIndex = docs.findIndex(d => d.id === targetId);
+      
+      if (draggedIndex === -1 || targetIndex === -1) return;
+
+      const newDocs = [...docs];
+      const [removed] = newDocs.splice(draggedIndex, 1);
+      const insertAt = dropTarget?.position === 'bottom' ? targetIndex + 1 : targetIndex;
+      
+      if (removed) {
+        newDocs.splice(insertAt, 0, removed);
+        
+        // Обновляем порядок всех документов в секции
+        newDocs.forEach((doc, index) => {
+          doc.order = newDocs.length - index;
+        });
+      }
+
+      onReorder(draggedDocId, targetId);
+    }
+
+    setDraggedId(null);
+    setDropTarget(null);
+  };
+
+  const renderDocument = (doc: Document) => (
+    <div
+      key={doc.id}
+      draggable
+      onClick={(e) => handleClick(e, doc.id)}
+      onDragStart={(e) => handleDragStart(e, doc.id)}
+      onDragOver={(e) => handleDragOver(e, doc.id)}
+      onDragLeave={handleDragLeave}
+      onDrop={(e) => handleDrop(e, doc.id)}
+      className="relative"
+    >
+      <div
+        className={`group flex items-center gap-2 p-2 hover:bg-zinc-700 rounded-lg cursor-pointer select-none ${
+          draggedId === doc.id ? 'opacity-50' : ''
+        }`}
+      >
+        <FileText className="w-4 h-4 text-zinc-400 group-hover:text-zinc-300 flex-shrink-0" />
+        <span className="flex-1 text-zinc-300 group-hover:text-white truncate">
           {doc.title}
-        </Link>
-      ))}
+        </span>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onTogglePin(doc.id);
+          }}
+          className={`flex-shrink-0 p-1 rounded hover:bg-zinc-600 transition-opacity ${
+            doc.isPinned ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+          }`}
+        >
+          <Pin className={`w-4 h-4 ${doc.isPinned ? 'text-blue-400' : 'text-zinc-400'}`} />
+        </button>
+      </div>
+      {dropTarget?.id === doc.id && (
+        <div 
+          className={`absolute left-0 right-0 h-0.5 bg-blue-400 ${
+            dropTarget.position === 'top' ? '-top-px' : '-bottom-px'
+          }`} 
+        />
+      )}
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+      {/* Закрепленные документы */}
+      {pinnedDocs.length > 0 && (
+        <div className="space-y-1">
+          <div className="text-xs font-medium text-zinc-500 px-2">Закрепленные</div>
+          {pinnedDocs.map(renderDocument)}
+        </div>
+      )}
+
+      {/* Остальные документы */}
+      <div className="space-y-1">
+        {pinnedDocs.length > 0 && unpinnedDocs.length > 0 && (
+          <div className="text-xs font-medium text-zinc-500 px-2">Остальные</div>
+        )}
+        {unpinnedDocs.map(renderDocument)}
+      </div>
+
+      {/* Сообщение об отсутствии документов */}
+      {documents.length === 0 && (
+        <div className="text-zinc-500 text-sm p-2">
+          Нет документов
+        </div>
+      )}
     </div>
   );
 };
-
 
 export default DocumentList;
