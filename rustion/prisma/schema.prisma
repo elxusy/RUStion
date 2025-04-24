@@ -134,15 +134,15 @@ enum Role {
  }
 
 model Document {
-    id        String   @id @default(cuid())
-    title     String
-    content   String?  @db.Text
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
-    isPinned  Boolean  @default(false)
-    order     Int?
-    userId    String
-    user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+    id            String   @id @default(cuid())
+    title         String
+    content       String?  @db.Text
+    createdAt     DateTime @default(now())
+    updatedAt     DateTime @updatedAt
+    isPinned      Boolean  @default(false)
+    order         Int?
+    userId        String
+    user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
     @@index([userId])
 }

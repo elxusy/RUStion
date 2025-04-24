@@ -90,7 +90,11 @@ const DocumentList: React.FC<DocumentListProps> = ({ documents, onTogglePin, onR
 
       const newDocs = [...docs];
       const [removed] = newDocs.splice(draggedIndex, 1);
-      const insertAt = dropTarget?.position === 'bottom' ? targetIndex + 1 : targetIndex;
+      
+      // Определяем позицию вставки с учетом того, что dropTarget может быть null
+      const insertAt = dropTarget && dropTarget.position === 'bottom' 
+        ? targetIndex + 1 
+        : targetIndex;
       
       if (removed) {
         newDocs.splice(insertAt, 0, removed);
@@ -140,10 +144,10 @@ const DocumentList: React.FC<DocumentListProps> = ({ documents, onTogglePin, onR
           <Pin className={`w-4 h-4 ${doc.isPinned ? 'text-blue-400' : 'text-zinc-400'}`} />
         </button>
       </div>
-      {dropTarget?.id === doc.id && (
+      {dropTarget && dropTarget.id === doc.id && (
         <div 
           className={`absolute left-0 right-0 h-0.5 bg-blue-400 ${
-            dropTarget.position === 'top' ? '-top-px' : '-bottom-px'
+            dropTarget?.position === 'top' ? '-top-px' : '-bottom-px'
           }`} 
         />
       )}
