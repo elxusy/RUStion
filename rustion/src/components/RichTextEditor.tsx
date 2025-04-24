@@ -1,34 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import debounce from 'lodash/debounce';
-import {
-  MDXEditor,
-  headingsPlugin,
-  listsPlugin,
-  quotePlugin,
-  thematicBreakPlugin,
-  markdownShortcutPlugin,
-  tablePlugin,
-  toolbarPlugin,
-  linkPlugin,
-  codeBlockPlugin,
-  UndoRedo,
-  BoldItalicUnderlineToggles,
-  ListsToggle,
-  BlockTypeSelect,
-  CreateLink,
-  InsertTable,
-  InsertThematicBreak,
-  CodeToggle,
-  diffSourcePlugin,
-  DiffSourceToggleWrapper,
-  imagePlugin,
-  InsertImage,
-  frontmatterPlugin
-} from '@mdxeditor/editor';
-import type { ViewMode } from '@mdxeditor/editor';
-import '@mdxeditor/editor/style.css';
+import { Bold, Italic, Link, Code, Type, Heading1, Heading2, List, ListOrdered, Quote } from 'lucide-react';
 
 type RichTextEditorProps = {
   initialContent: string;
@@ -41,158 +14,343 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   onSave,
   placeholder = 'Начните писать...'
 }) => {
-  const [content, setContent] = useState<string>(initialContent || '');
-  const [viewMode, setViewMode] = useState<ViewMode>('rich-text');
-  const isInitialMount = useRef(true);
-  const isUserEdit = useRef(false);
+  const [content, setContent] = useState(initialContent || '');
+  const editorRef = useRef<HTMLDivElement>(null);
+  const [isFocused, setIsFocused] = useState(false);
+  const [selectionPosition, setSelectionPosition] = useState({ top: 0, left: 0 });
+  const [showFormatBar, setShowFormatBar] = useState(false);
 
-  // Мы используем debounce с меньшей задержкой для лучшего отклика
-  const debouncedSave = useCallback(
-    debounce((value: string) => {
-      if (isUserEdit.current) {
-        onSave(value);
-        isUserEdit.current = false;
+  // Инициализация контента с правильным направлением
+  useEffect(() => {
+    if (editorRef.current && initialContent) {
+      editorRef.current.innerHTML = initialContent;
+      fixTextDirection();
+    }
+  }, [initialContent]);
+
+  // Функция для исправления направления текста
+  const fixTextDirection = () => {
+    if (!editorRef.current) return;
+    
+    // Установим явное направление для редактора
+    editorRef.current.dir = 'ltr'; 
+    editorRef.current.style.direction = 'ltr';
+    editorRef.current.style.textAlign = 'left';
+    
+    // И для всех дочерних элементов
+    const allElements = editorRef.current.querySelectorAll('*');
+    allElements.forEach(el => {
+      if (el instanceof HTMLElement) {
+        el.dir = 'ltr';
+        el.style.direction = 'ltr';
+        el.style.textAlign = 'left';
       }
-    }, 500),
-    [onSave]
-  );
-
-  const handleContentChange = (value: string) => {
-    isUserEdit.current = true;
-    setContent(value);
-    debouncedSave(value);
+    });
   };
 
-  // При инициализации или изменении initialContent снаружи
-  useEffect(() => {
-    if (isInitialMount.current) {
-      isInitialMount.current = false;
-      return;
+  // Обработка изменений в редакторе
+  const handleInput = () => {
+    if (editorRef.current) {
+      fixTextDirection();
+      const newContent = editorRef.current.innerHTML;
+      setContent(newContent);
+      onSave(newContent);
     }
+  };
 
-    // Обновляем локальное состояние только если пользователь не редактирует сейчас
-    if (!isUserEdit.current && initialContent !== content) {
-      setContent(initialContent || '');
+  // Отслеживание выделения текста
+  const handleSelectionChange = useCallback(() => {
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0 && selection.toString().trim() !== '') {
+      const range = selection.getRangeAt(0);
+      const rect = range.getBoundingClientRect();
+      
+      if (rect.width > 0) {
+        setSelectionPosition({
+          top: rect.top - 40 + window.scrollY,
+          left: rect.left + rect.width / 2
+        });
+        setShowFormatBar(true);
+      }
+    } else {
+      setShowFormatBar(false);
     }
-  }, [initialContent, content]);
-
-  // Добавляем CSS для улучшения контраста в редакторе
-  useEffect(() => {
-    const style = document.createElement('style');
-    style.textContent = `
-      .mdxeditor {
-        border: none !important;
-      }
-      .mdxeditor-content-editable {
-        color: white !important;
-        font-size: 16px !important;
-      }
-      .mdxeditor-toolbar {
-        background-color: #27272a !important;
-        border-bottom: 1px solid #3f3f46 !important;
-      }
-      .mdxeditor-toolbar-item {
-        color: #d4d4d8 !important;
-      }
-      .mdxeditor-toolbar-item:hover {
-        background-color: #3f3f46 !important;
-      }
-      .mdxeditor-toolbar-item-active {
-        background-color: #3b82f6 !important;
-        color: white !important;
-      }
-      .mdxeditor-toolbar-separator {
-        background-color: #3f3f46 !important;
-      }
-      .mdxeditor-placeholder {
-        color: #9ca3af !important;
-      }
-      .prose h1, .prose h2, .prose h3, .prose h4, .prose h5, .prose h6 {
-        color: white !important;
-        margin-top: 1.5em !important;
-        margin-bottom: 0.5em !important;
-      }
-      .prose p {
-        color: #f1f5f9 !important;
-      }
-      .prose a {
-        color: #3b82f6 !important;
-      }
-      .prose ul, .prose ol {
-        color: #f1f5f9 !important;
-      }
-      .prose code {
-        background-color: #374151 !important;
-        color: #f1f5f9 !important;
-        padding: 0.1em 0.3em !important;
-        border-radius: 0.25em !important;
-      }
-      .prose pre {
-        background-color: #1f2937 !important;
-        color: #f1f5f9 !important;
-      }
-      .prose blockquote {
-        border-left-color: #3b82f6 !important;
-        background-color: rgba(59, 130, 246, 0.1) !important;
-        padding: 0.5em 1em !important;
-      }
-      .prose table {
-        border-color: #374151 !important;
-      }
-      .prose th {
-        background-color: #374151 !important;
-        color: white !important;
-      }
-      .prose td {
-        border-color: #374151 !important;
-      }
-    `;
-    document.head.appendChild(style);
-    
-    return () => {
-      document.head.removeChild(style);
-    };
   }, []);
 
+  useEffect(() => {
+    document.addEventListener('selectionchange', handleSelectionChange);
+    return () => {
+      document.removeEventListener('selectionchange', handleSelectionChange);
+    };
+  }, [handleSelectionChange]);
+
+  // Форматирование текста
+  const applyFormat = (format: string) => {
+    document.execCommand(format, false);
+    handleInput(); // Обновляем содержимое после форматирования
+  };
+
+  // Вставка заголовка определенного уровня
+  const insertHeading = (level: number) => {
+    document.execCommand('formatBlock', false, `h${level}`);
+    handleInput();
+  };
+
+  // Вставка цитаты
+  const insertQuote = () => {
+    document.execCommand('formatBlock', false, 'blockquote');
+    handleInput();
+  };
+
+  // Вставка списка
+  const insertList = (ordered: boolean) => {
+    if (ordered) {
+      document.execCommand('insertOrderedList', false);
+    } else {
+      document.execCommand('insertUnorderedList', false);
+    }
+    handleInput();
+  };
+
+  // Обработка специальных клавиш
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Запустим проверку направления текста при каждом нажатии клавиши
+    setTimeout(fixTextDirection, 0);
+    
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      document.execCommand('insertHTML', false, '&nbsp;&nbsp;&nbsp;&nbsp;');
+      handleInput();
+    }
+    
+    // Ctrl+B для жирного текста
+    if (e.ctrlKey && e.key === 'b') {
+      e.preventDefault();
+      applyFormat('bold');
+    }
+    
+    // Ctrl+I для курсива
+    if (e.ctrlKey && e.key === 'i') {
+      e.preventDefault();
+      applyFormat('italic');
+    }
+    
+    // Ctrl+K для ссылки
+    if (e.ctrlKey && e.key === 'k') {
+      e.preventDefault();
+      const url = prompt('Введите URL:');
+      if (url) {
+        document.execCommand('createLink', false, url);
+        handleInput();
+      }
+    }
+  };
+
+  // Создаем функцию для проверки направления при фокусе
+  const handleFocus = () => {
+    setIsFocused(true);
+    fixTextDirection();
+  };
+
   return (
-    <div className="rich-text-editor w-full rounded-md border border-zinc-700 overflow-hidden shadow-sm">
-      <MDXEditor
-        markdown={content}
-        onChange={handleContentChange}
-        placeholder={placeholder}
-        contentEditableClassName="prose prose-invert max-w-none min-h-[300px] p-4 focus:outline-none bg-zinc-800 text-white"
-        className="w-full bg-zinc-800 text-white"
-        plugins={[
-          headingsPlugin(),
-          listsPlugin(),
-          quotePlugin(),
-          thematicBreakPlugin(),
-          markdownShortcutPlugin(),
-          tablePlugin(),
-          frontmatterPlugin(),
-          codeBlockPlugin({ defaultCodeBlockLanguage: 'js' }),
-          diffSourcePlugin({ viewMode }),
-          linkPlugin(),
-          imagePlugin(),
-          toolbarPlugin({
-            toolbarContents: () => (
-              <>
-                <DiffSourceToggleWrapper>
-                  <UndoRedo />
-                  <BoldItalicUnderlineToggles />
-                  <CodeToggle />
-                  <BlockTypeSelect />
-                  <ListsToggle />
-                  <CreateLink />
-                  <InsertImage />
-                  <InsertTable />
-                  <InsertThematicBreak />
-                </DiffSourceToggleWrapper>
-              </>
-            ),
-          }),
-        ]}
+    <div className="rich-editor-container relative" dir="ltr">
+      {/* Панель форматирования (появляется при выделении текста) */}
+      {showFormatBar && (
+        <div 
+          className="format-bar fixed bg-zinc-800 border border-zinc-700 rounded-md shadow-lg p-1 flex items-center gap-1 z-50"
+          style={{ 
+            top: selectionPosition.top, 
+            left: selectionPosition.left,
+            transform: 'translateX(-50%)'
+          }}
+        >
+          <button 
+            onClick={() => applyFormat('bold')}
+            className="p-1.5 hover:bg-zinc-700 rounded-md"
+            title="Жирный (Ctrl+B)"
+          >
+            <Bold size={16} />
+          </button>
+          <button 
+            onClick={() => applyFormat('italic')}
+            className="p-1.5 hover:bg-zinc-700 rounded-md"
+            title="Курсив (Ctrl+I)"
+          >
+            <Italic size={16} />
+          </button>
+          <button 
+            onClick={() => {
+              const url = prompt('Введите URL:');
+              if (url) {
+                document.execCommand('createLink', false, url);
+                handleInput();
+              }
+            }}
+            className="p-1.5 hover:bg-zinc-700 rounded-md"
+            title="Ссылка (Ctrl+K)"
+          >
+            <Link size={16} />
+          </button>
+          <button 
+            onClick={() => {
+              document.execCommand('formatBlock', false, 'pre');
+              handleInput();
+            }}
+            className="p-1.5 hover:bg-zinc-700 rounded-md"
+            title="Код"
+          >
+            <Code size={16} />
+          </button>
+        </div>
+      )}
+      
+      {/* Панель с форматами блоков */}
+      <div className="block-toolbar bg-zinc-800 border border-zinc-700 rounded-md p-1 mb-2 flex items-center gap-1 overflow-x-auto hide-scrollbar">
+        <button 
+          onClick={() => document.execCommand('formatBlock', false, 'p')}
+          className="p-1.5 hover:bg-zinc-700 rounded-md flex items-center gap-1 text-xs"
+          title="Обычный текст"
+        >
+          <Type size={14} />
+          <span>Текст</span>
+        </button>
+        <button 
+          onClick={() => insertHeading(1)}
+          className="p-1.5 hover:bg-zinc-700 rounded-md flex items-center gap-1 text-xs"
+          title="Заголовок 1"
+        >
+          <Heading1 size={14} />
+          <span>H1</span>
+        </button>
+        <button 
+          onClick={() => insertHeading(2)}
+          className="p-1.5 hover:bg-zinc-700 rounded-md flex items-center gap-1 text-xs"
+          title="Заголовок 2"
+        >
+          <Heading2 size={14} />
+          <span>H2</span>
+        </button>
+        <button 
+          onClick={() => insertList(false)}
+          className="p-1.5 hover:bg-zinc-700 rounded-md flex items-center gap-1 text-xs"
+          title="Маркированный список"
+        >
+          <List size={14} />
+          <span>Список</span>
+        </button>
+        <button 
+          onClick={() => insertList(true)}
+          className="p-1.5 hover:bg-zinc-700 rounded-md flex items-center gap-1 text-xs"
+          title="Нумерованный список"
+        >
+          <ListOrdered size={14} />
+          <span>Номера</span>
+        </button>
+        <button 
+          onClick={insertQuote}
+          className="p-1.5 hover:bg-zinc-700 rounded-md flex items-center gap-1 text-xs"
+          title="Цитата"
+        >
+          <Quote size={14} />
+          <span>Цитата</span>
+        </button>
+      </div>
+      
+      {/* Сам редактор */}
+      <div
+        ref={editorRef}
+        contentEditable
+        onInput={handleInput}
+        onKeyDown={handleKeyDown}
+        onFocus={handleFocus}
+        onBlur={() => setIsFocused(false)}
+        className={`editor-content min-h-[200px] p-4 rounded-md border ${
+          isFocused ? 'border-blue-500' : 'border-zinc-700'
+        } focus:outline-none transition-colors bg-zinc-800/50 prose prose-invert max-w-none`}
+        dangerouslySetInnerHTML={{ __html: initialContent || '' }}
+        data-placeholder={placeholder}
+        dir="ltr"
+        style={{ 
+          direction: 'ltr', 
+          unicodeBidi: 'isolate',
+          textAlign: 'left'
+        }}
       />
+      
+      <style jsx>{`
+        .editor-content:empty:before {
+          content: attr(data-placeholder);
+          color: #6b7280;
+          pointer-events: none;
+        }
+        
+        .hide-scrollbar::-webkit-scrollbar {
+          display: none;
+        }
+        
+        .hide-scrollbar {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+        
+        .editor-content h1 {
+          font-size: 1.8rem;
+          font-weight: 600;
+          margin-top: 1rem;
+          margin-bottom: 0.5rem;
+          direction: ltr;
+          text-align: left;
+        }
+        
+        .editor-content h2 {
+          font-size: 1.5rem;
+          font-weight: 600;
+          margin-top: 1rem;
+          margin-bottom: 0.5rem;
+          direction: ltr;
+          text-align: left;
+        }
+        
+        .editor-content p {
+          font-size: 1rem;
+          margin-bottom: 0.75rem;
+          direction: ltr;
+          text-align: left;
+        }
+        
+        .editor-content ul, .editor-content ol {
+          padding-left: 1.5rem;
+          margin-bottom: 0.75rem;
+          direction: ltr;
+          text-align: left;
+        }
+        
+        .editor-content blockquote {
+          border-left: 3px solid #6366f1;
+          padding-left: 1rem;
+          margin-left: 0;
+          color: #a1a1aa;
+          font-style: italic;
+          direction: ltr;
+          text-align: left;
+        }
+        
+        .editor-content a {
+          color: #818cf8;
+          text-decoration: underline;
+          direction: ltr;
+        }
+        
+        .editor-content pre {
+          background-color: #27272a;
+          padding: 0.75rem;
+          border-radius: 0.25rem;
+          overflow-x: auto;
+          margin-bottom: 0.75rem;
+          direction: ltr;
+          text-align: left;
+        }
+      `}</style>
     </div>
   );
 };

@@ -143,8 +143,10 @@ export default function ResizableSidebar() {
         return;
       }
       console.log("Удаление документа:", docId);
-      deleteDocument.mutate(docId);
-    } catch (error) {
+      if (!deleteDocument.isPending) {
+        deleteDocument.mutate(docId);
+      }
+    } catch (error: unknown) {
       console.error("Ошибка при обработке перетаскивания для удаления:", error);
     }
   };
@@ -157,7 +159,7 @@ export default function ResizableSidebar() {
         title,
         content: "",
       });
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Ошибка при создании документа:", error);
     }
   };
@@ -176,6 +178,10 @@ export default function ResizableSidebar() {
         return;
       }
       
+      if (togglePin.isPending || updateOrder.isPending) {
+        return;
+      }
+      
       const draggedDoc = documents.find((d: Document) => d.id === draggedId);
       const targetDoc = documents.find((d: Document) => d.id === targetId);
       
@@ -184,7 +190,6 @@ export default function ResizableSidebar() {
         return;
       }
   
-      // Если перетаскиваем между разными секциями, меняем статус закрепления
       if (draggedDoc.isPinned !== targetDoc.isPinned) {
         console.log("Изменение закрепления при переносе между секциями:", { 
           draggedId, 
@@ -193,35 +198,11 @@ export default function ResizableSidebar() {
         });
         togglePin.mutate({ id: draggedId, isPinned: targetDoc.isPinned });
       } else {
-        // В пределах одной секции меняем порядок
-        const docs = draggedDoc.isPinned ? documents.filter((d: Document) => d.isPinned) : documents.filter((d: Document) => !d.isPinned);
-        const draggedIndex = docs.findIndex((d: Document) => d.id === draggedId);
-        const targetIndex = docs.findIndex((d: Document) => d.id === targetId);
-        
-        if (draggedIndex === -1 || targetIndex === -1) {
-          console.error("Ошибка: документы не найдены в секции");
-          return;
-        }
-  
-        const newDocs = [...docs];
-        const [removed] = newDocs.splice(draggedIndex, 1);
-        
-        if (!removed) {
-          console.error("Ошибка: не удалось переместить документ");
-          return;
-        }
-        
-        newDocs.splice(targetIndex, 0, removed);
-  
-        // Обновляем порядок всех документов в секции
-        console.log("Обновление порядка документов в секции");
-        newDocs.forEach((doc, index) => {
-          const newOrder = newDocs.length - index;
-          console.log(`Документ ${doc.id} -> порядок ${newOrder}`);
-          updateOrder.mutate({ id: doc.id, order: newOrder });
-        });
+        const newOrder = targetDoc.order ? targetDoc.order + 1 : 1;
+        console.log(`Обновляем порядок документа ${draggedId} на ${newOrder}`);
+        updateOrder.mutate({ id: draggedId, order: newOrder });
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Ошибка при изменении порядка документов:", error);
     }
   };

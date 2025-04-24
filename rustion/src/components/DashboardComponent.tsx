@@ -241,168 +241,228 @@ const DashboardComponent: React.FC<DashboardProps> = ({
   };
 
   return (
-    <div className="dashboard-component">
-      <div className="flex gap-4 overflow-x-auto pb-2 pt-1">
+    <div className="dashboard-component bg-zinc-900 rounded-xl border border-zinc-800 shadow-lg overflow-hidden">
+      <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
+        <h2 className="text-lg font-medium text-zinc-100 flex items-center gap-2">
+          <LayoutGrid className="w-5 h-5 text-indigo-400" />
+          <span>Управление задачами</span>
+        </h2>
+        <button
+          onClick={handleAddColumn}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 rounded-md transition-all"
+        >
+          <Plus className="w-4 h-4" />
+          <span>Новая колонка</span>
+        </button>
+      </div>
+      
+      <div className="flex gap-5 overflow-x-auto p-5 min-h-[500px] bg-gradient-to-b from-zinc-900 to-zinc-950">
         {sortedColumns.map(column => {
           const columnTasks = tasks.filter(task => task.column === column.id);
           return (
             <div 
               key={column.id}
-              className={`dashboard-column flex-shrink-0 w-64 rounded-lg border shadow-sm ${
-                activeColumn === column.id ? 'border-blue-500 ring-2 ring-blue-900' : 'border-zinc-700'
-              } transition-all duration-200`}
-              style={{ backgroundColor: column.color }}
               onDragOver={(e) => handleDragOver(e, column.id)}
               onDrop={() => handleDrop(column.id)}
+              className={`column flex-shrink-0 w-[320px] rounded-lg overflow-hidden flex flex-col ${
+                activeColumn === column.id && draggedTask ? 'ring-2 ring-indigo-500 ring-opacity-70' : ''
+              }`}
+              style={{ backgroundColor: column.color || '#1a1a2e' }}
             >
-              <div className="flex justify-between items-center px-3 py-2 border-b border-zinc-700">
-                <div className="flex flex-col">
+              <div className="p-3 flex items-center justify-between border-b border-opacity-20 border-white">
+                <div className="flex items-center gap-2">
                   <input
                     type="text"
                     value={column.title}
                     onChange={(e) => handleColumnTitleChange(column.id, e.target.value)}
-                    className="font-medium bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-blue-500 rounded px-1 text-zinc-200"
+                    className="bg-transparent font-medium text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 px-2 py-1 rounded max-w-[150px]"
                   />
-                  <span className="text-xs text-zinc-400 ml-1">{getColumnTaskCount(column.id)} задач</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <div className="relative">
-                    <button
-                      onClick={() => toggleColumnColorPicker(column.id)}
-                      className="text-zinc-500 hover:text-blue-400 p-1 rounded-full hover:bg-zinc-800/50 transition-colors"
-                      title="Цвет колонки"
-                    >
-                      <Circle className="w-3.5 h-3.5 fill-current" />
-                    </button>
+                  <div 
+                    className="relative cursor-pointer"
+                    onClick={() => toggleColumnColorPicker(column.id)}
+                  >
+                    <div 
+                      className="w-5 h-5 rounded-full border border-white/30"
+                      style={{ backgroundColor: column.color }}
+                    />
                     {columnColorPickerOpen === column.id && (
-                      <div className="absolute top-full right-0 mt-1 p-1 bg-zinc-800 border border-zinc-600 rounded shadow-lg z-20">
-                        <div className="grid grid-cols-3 gap-1 mb-1">
-                          {COLUMN_COLORS.map(color => (
-                            <button
-                              key={color.value}
-                              onClick={() => handleColumnColorChange(column.id, color.value)}
-                              className="w-6 h-6 rounded hover:ring-2 hover:ring-white"
-                              style={{ backgroundColor: color.value }}
-                              title={color.name}
-                            />
-                          ))}
-                        </div>
+                      <div className="absolute z-10 mt-2 -left-2 bg-zinc-800 rounded-lg p-2 border border-zinc-700 shadow-xl grid grid-cols-5 gap-1.5 w-[160px]">
+                        {COLUMN_COLORS.map(color => (
+                          <div
+                            key={color.value}
+                            className="w-6 h-6 rounded-full cursor-pointer hover:scale-110 transform transition-transform border border-white/20"
+                            style={{ backgroundColor: color.value }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleColumnColorChange(column.id, color.value);
+                            }}
+                            title={color.name}
+                          />
+                        ))}
                       </div>
                     )}
                   </div>
-                  {columns.length > 1 && (
-                    <button
-                      onClick={() => handleRemoveColumn(column.id)}
-                      className="text-zinc-500 hover:text-red-500 p-1 rounded-full hover:bg-zinc-800/50 transition-colors"
-                      title="Удалить колонку"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
+                  <span className="text-xs text-white/70 px-2 py-0.5 rounded-full bg-black/30">
+                    {getColumnTaskCount(column.id)}
+                  </span>
                 </div>
-              </div>
-              <div className="p-2 min-h-[12rem] flex flex-col gap-2">
-                {columnTasks.length === 0 && (
-                  <div className="text-center py-6 text-zinc-500 text-xs italic">
-                    Перетащите задачи сюда
-                  </div>
-                )}
                 
+                <button
+                  onClick={() => handleRemoveColumn(column.id)}
+                  className="text-white/70 hover:text-white/90 p-1 rounded-full hover:bg-black/20 transition-colors"
+                  title="Удалить колонку"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+              <div 
+                className="flex-1 p-3 overflow-y-auto task-container space-y-3"
+                style={{ backgroundColor: `${column.color}cc` }}
+              >
                 {columnTasks.map(task => (
-                  <div
+                  <div 
                     key={task.id}
                     draggable
                     onDragStart={() => handleDragStart(task)}
                     onDragEnd={handleDragEnd}
-                    className={`task p-2 rounded border border-zinc-700 shadow-sm cursor-move 
-                      hover:shadow hover:border-blue-600 transition-all duration-150 ${
-                      draggedTask?.id === task.id ? 'opacity-50 ring-2 ring-blue-800' : ''
-                    } ${task.color || 'bg-zinc-800'}`}
+                    className={`task bg-opacity-90 rounded-lg shadow-md overflow-hidden flex flex-col ${task.color || 'bg-zinc-700'} transform transition-transform duration-200 hover:-translate-y-1`}
                   >
-                    <div className="flex justify-between items-start mb-1 gap-1">
-                      <input
-                        type="text"
-                        value={task.title}
-                        onChange={(e) => handleTaskTitleChange(task.id, e.target.value)}
-                        onClick={() => setEditingTaskId(task.id)}
-                        onBlur={() => setEditingTaskId(null)}
-                        className="flex-1 font-medium bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-blue-500 rounded px-1 text-white placeholder-zinc-400"
-                        placeholder="Введите название задачи..."
-                      />
-                      <div className="flex gap-1">
-                        <div className="relative">
-                          <button
-                            onClick={() => toggleColorPicker(task.id)}
-                            className="p-1 text-zinc-400 hover:text-blue-400 rounded-full hover:bg-zinc-700/50 transition-colors"
-                            title="Изменить цвет"
-                          >
-                            <Circle className="w-3.5 h-3.5 fill-current" />
-                          </button>
+                    <div className="p-3 pb-2 flex items-start justify-between gap-2">
+                      {editingTaskId === task.id ? (
+                        <input
+                          type="text"
+                          value={task.title}
+                          onChange={(e) => handleTaskTitleChange(task.id, e.target.value)}
+                          onBlur={() => setEditingTaskId(null)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              setEditingTaskId(null);
+                            }
+                          }}
+                          autoFocus
+                          className="flex-1 bg-black/20 p-1 rounded text-white focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                        />
+                      ) : (
+                        <div 
+                          onClick={() => setEditingTaskId(task.id)}
+                          className="flex-1 text-white cursor-pointer font-medium"
+                        >
+                          {task.title}
+                        </div>
+                      )}
+                      
+                      <div className="flex items-center gap-1">
+                        <div
+                          className="relative cursor-pointer"
+                          onClick={() => toggleColorPicker(task.id)}
+                          title="Изменить цвет"
+                        >
+                          <div className="w-5 h-5 flex items-center justify-center text-white/80 hover:text-white rounded-full hover:bg-black/20">
+                            <Circle className="w-3.5 h-3.5" />
+                          </div>
                           
                           {colorPickerOpen === task.id && (
-                            <div className="absolute top-full right-0 mt-1 p-1 bg-zinc-800 border border-zinc-600 rounded shadow-lg z-10 w-28">
-                              <div className="grid grid-cols-4 gap-1 mb-1">
-                                {CARD_COLORS.map(color => (
-                                  <button
-                                    key={color.value}
-                                    onClick={() => handleTaskColorChange(task.id, color.value)}
-                                    className={`w-5 h-5 rounded-full ${color.value} hover:ring-2 hover:ring-white transition-all`}
-                                    title={color.name}
-                                  />
-                                ))}
-                              </div>
+                            <div className="absolute z-10 mt-2 right-0 bg-zinc-800 rounded-lg p-2 border border-zinc-700 shadow-xl grid grid-cols-4 gap-1.5 w-[120px]">
+                              {CARD_COLORS.map(color => (
+                                <div
+                                  key={color.value}
+                                  className={`w-5 h-5 rounded-full cursor-pointer hover:scale-110 transform transition-transform ${color.value}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleTaskColorChange(task.id, color.value);
+                                  }}
+                                  title={color.name}
+                                />
+                              ))}
                             </div>
                           )}
                         </div>
-                        <span className="drag-handle text-zinc-500">
-                          <Move className="w-4 h-4" />
-                        </span>
+                        
                         <button
                           onClick={() => handleRemoveTask(task.id)}
-                          className="text-zinc-500 hover:text-red-500 transition-colors"
+                          className="w-5 h-5 flex items-center justify-center text-white/80 hover:text-white rounded-full hover:bg-black/20"
                           title="Удалить задачу"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
+                        
+                        <div 
+                          className="w-5 h-5 flex items-center justify-center text-white/60 cursor-grab"
+                          title="Перетащить задачу"
+                        >
+                          <Move className="w-3.5 h-3.5" />
+                        </div>
                       </div>
                     </div>
+                    
                     {task.description && (
-                      <p className="text-sm text-zinc-400 px-1">{task.description}</p>
+                      <div className="px-3 pb-2">
+                        <p className="text-white/80 text-sm">{task.description}</p>
+                      </div>
+                    )}
+                    
+                    {task.dueDate && (
+                      <div className="px-3 pb-2 flex items-center gap-1.5">
+                        <CalendarRange className="w-3.5 h-3.5 text-white/70" />
+                        <span className="text-xs text-white/70">{task.dueDate}</span>
+                      </div>
+                    )}
+                    
+                    {task.tags && task.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 px-3 pb-3">
+                        {task.tags.map((tag, idx) => (
+                          <span 
+                            key={idx} 
+                            className="text-xs px-2 py-0.5 rounded-full bg-black/30 text-white/80 flex items-center gap-1"
+                          >
+                            <Tag className="w-3 h-3" />
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
                     )}
                   </div>
                 ))}
                 
+                {columnTasks.length === 0 && (
+                  <div className="flex flex-col items-center justify-center h-36 text-white/40 bg-black/20 rounded-lg">
+                    <PenSquare className="w-6 h-6 mb-2" />
+                    <p className="text-sm">Нет задач</p>
+                    <p className="text-xs">Добавьте первую задачу</p>
+                  </div>
+                )}
+                
                 <div className="mt-2">
-                  <input
-                    type="text"
-                    value={taskInputs[column.id] || ''}
-                    onChange={(e) => handleTaskInputChange(column.id, e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleAddTask(column.id)}
-                    placeholder="Добавить задачу..."
-                    className="w-full p-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white bg-zinc-700 border-zinc-600 transition-all"
-                  />
-                  <button
-                    onClick={() => handleAddTask(column.id)}
-                    className="mt-1 w-full py-1.5 flex items-center justify-center text-sm text-zinc-400 hover:text-blue-400 hover:bg-zinc-800/80 rounded transition-colors"
-                  >
-                    <Plus className="w-4 h-4 mr-1" />
-                    <span>Добавить</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={taskInputs[column.id] || ''}
+                      onChange={(e) => handleTaskInputChange(column.id, e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && taskInputs[column.id]?.trim()) {
+                          handleAddTask(column.id);
+                        }
+                      }}
+                      placeholder="Добавить задачу..."
+                      className="flex-1 bg-black/40 px-3 py-2 rounded-md text-white text-sm placeholder:text-white/50 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                    />
+                    <button
+                      onClick={() => handleAddTask(column.id)}
+                      disabled={!taskInputs[column.id]?.trim()}
+                      className={`p-2 rounded-md ${
+                        taskInputs[column.id]?.trim() 
+                          ? 'bg-indigo-600/50 text-white hover:bg-indigo-600/70' 
+                          : 'bg-black/30 text-white/50 cursor-not-allowed'
+                      } transition-colors`}
+                    >
+                      <Plus className="w-5 h-5" />
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
           );
         })}
-        
-        <div className="flex-shrink-0 flex items-start">
-          <button
-            onClick={handleAddColumn}
-            className="p-2 h-10 rounded-lg border border-dashed border-zinc-600 bg-zinc-800/50 text-zinc-400 hover:text-blue-400 hover:border-blue-500 hover:bg-zinc-700 flex items-center transition-colors shadow-sm"
-          >
-            <Plus className="w-5 h-5 mr-1" />
-            <span>Добавить колонку</span>
-          </button>
-        </div>
       </div>
     </div>
   );

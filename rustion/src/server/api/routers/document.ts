@@ -4,6 +4,7 @@ import {
   publicProcedure,
   protectedProcedure,
 } from "~/server/api/trpc";
+import { TRPCError } from "@trpc/server";
 
 // Приведение типа, чтобы обойти проблему с типизацией Prisma
 const prisma = (ctx: any) => ctx.db as any;
@@ -21,8 +22,7 @@ export const documentRouter = createTRPCRouter({
         ],
       });
       return documents;
-    } catch (error) {
-      console.error("Ошибка при получении документов:", error);
+    } catch (error: unknown) {
       return [];
     }
   }),
@@ -38,9 +38,8 @@ export const documentRouter = createTRPCRouter({
           },
         });
         return document;
-      } catch (error) {
-        console.error("Ошибка при получении документа:", error);
-        throw error;
+      } catch (error: unknown) {
+        return null;
       }
     }),
 
@@ -75,12 +74,11 @@ export const documentRouter = createTRPCRouter({
         
         console.log("Document created:", document.id);
         return document;
-      } catch (error: any) {
-        console.error("Ошибка при создании документа:", error);
-        console.error("Сообщение:", error.message);
-        console.error("Стек:", error.stack);
-        // Возвращаем более информативную ошибку
-        throw new Error(`Ошибка при создании документа: ${error.message}`);
+      } catch (error: unknown) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Не удалось создать документ',
+        });
       }
     }),
 
@@ -88,15 +86,18 @@ export const documentRouter = createTRPCRouter({
     .input(z.string())
     .mutation(async ({ ctx, input }) => {
       try {
-        return await prisma(ctx).document.delete({
+        await prisma(ctx).document.delete({
           where: {
             id: input,
             userId: ctx.session.user.id,
           },
         });
-      } catch (error) {
-        console.error("Ошибка при удалении документа:", error);
-        throw error;
+        return { success: true };
+      } catch (error: unknown) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Не удалось удалить документ',
+        });
       }
     }),
 
@@ -107,18 +108,35 @@ export const documentRouter = createTRPCRouter({
     }))
     .mutation(async ({ ctx, input }) => {
       try {
-        return await prisma(ctx).document.update({
+        const document = await prisma(ctx).document.findFirst({
           where: {
             id: input.id,
             userId: ctx.session.user.id,
           },
+        });
+
+        if (!document) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Документ не найден',
+          });
+        }
+
+        await prisma(ctx).document.update({
+          where: {
+            id: input.id,
+          },
           data: {
-            isPinned: input.isPinned,
+            isPinned: !document.isPinned,
           },
         });
-      } catch (error) {
-        console.error("Ошибка при изменении закрепления:", error);
-        throw error;
+
+        return { success: true };
+      } catch (error: unknown) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Не удалось изменить статус закрепления',
+        });
       }
     }),
 
@@ -129,7 +147,7 @@ export const documentRouter = createTRPCRouter({
     }))
     .mutation(async ({ ctx, input }) => {
       try {
-        return await prisma(ctx).document.update({
+        await prisma(ctx).document.update({
           where: {
             id: input.id,
             userId: ctx.session.user.id,
@@ -138,9 +156,13 @@ export const documentRouter = createTRPCRouter({
             order: input.order,
           },
         });
-      } catch (error) {
-        console.error("Ошибка при обновлении порядка:", error);
-        throw error;
+
+        return { success: true };
+      } catch (error: unknown) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Не удалось обновить порядок',
+        });
       }
     }),
 
@@ -151,7 +173,7 @@ export const documentRouter = createTRPCRouter({
     }))
     .mutation(async ({ ctx, input }) => {
       try {
-        return await prisma(ctx).document.update({
+        await prisma(ctx).document.update({
           where: {
             id: input.id,
             userId: ctx.session.user.id,
@@ -160,9 +182,13 @@ export const documentRouter = createTRPCRouter({
             title: input.title,
           },
         });
-      } catch (error) {
-        console.error("Ошибка при обновлении заголовка:", error);
-        throw error;
+
+        return { success: true };
+      } catch (error: unknown) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Не удалось обновить заголовок',
+        });
       }
     }),
 
@@ -173,7 +199,7 @@ export const documentRouter = createTRPCRouter({
     }))
     .mutation(async ({ ctx, input }) => {
       try {
-        return await prisma(ctx).document.update({
+        await prisma(ctx).document.update({
           where: {
             id: input.id,
             userId: ctx.session.user.id,
@@ -182,9 +208,13 @@ export const documentRouter = createTRPCRouter({
             content: input.content,
           },
         });
-      } catch (error) {
-        console.error("Ошибка при обновлении содержимого:", error);
-        throw error;
+
+        return { success: true };
+      } catch (error: unknown) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Не удалось обновить содержимое',
+        });
       }
     }),
 }); 
