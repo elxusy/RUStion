@@ -224,7 +224,7 @@ export default function ResizableSidebar() {
           width: isCollapsed ? 0 : sidebarWidth,
           transition: isResizing ? 'none' : 'width 0.2s ease',
         }}
-        className="relative bg-zinc-800 border-r border-zinc-700 h-screen flex-shrink-0 overflow-hidden flex flex-col"
+        className="fixed top-0 left-0 h-screen z-40 bg-zinc-800 border-r border-zinc-700 flex flex-col"
       >
         {!isCollapsed && (
           <>
