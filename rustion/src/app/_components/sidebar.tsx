@@ -17,30 +17,61 @@ export default function ResizableSidebar() {
   const sidebarRef = useRef<HTMLDivElement>(null);
 
   const utils = api.useUtils();
-  const { data: documents = [] } = api.document.getAll.useQuery();
+  const { data: documents = [], isError } = api.document.getAll.useQuery(undefined, {
+    retry: 1
+  });
 
   const createDocument = api.document.create.useMutation({
-    onSuccess: async () => {
-      await utils.document.invalidate();
+    onSuccess: async (newDoc) => {
+      console.log("Документ успешно создан:", newDoc.id);
+      try {
+        await utils.document.getAll.invalidate();
+      } catch (err) {
+        console.error("Ошибка при обновлении списка документов:", err);
+      }
     },
+    onError: (error) => {
+      console.error("Ошибка при создании документа:", error);
+    }
   });
 
   const deleteDocument = api.document.delete.useMutation({
     onSuccess: async () => {
-      await utils.document.invalidate();
+      try {
+        await utils.document.getAll.invalidate();
+      } catch (err) {
+        console.error("Ошибка при обновлении списка после удаления:", err);
+      }
     },
+    onError: (error) => {
+      console.error("Ошибка при удалении документа:", error);
+    }
   });
 
   const togglePin = api.document.togglePin.useMutation({
     onSuccess: async () => {
-      await utils.document.invalidate();
+      try {
+        await utils.document.getAll.invalidate();
+      } catch (err) {
+        console.error("Ошибка при обновлении списка после закрепления:", err);
+      }
     },
+    onError: (error) => {
+      console.error("Ошибка при закреплении документа:", error);
+    }
   });
 
   const updateOrder = api.document.updateOrder.useMutation({
     onSuccess: async () => {
-      await utils.document.invalidate();
+      try {
+        await utils.document.getAll.invalidate();
+      } catch (err) {
+        console.error("Ошибка при обновлении порядка документов:", err);
+      }
     },
+    onError: (error) => {
+      console.error("Ошибка при изменении порядка:", error);
+    }
   });
 
   useEffect(() => {
@@ -105,49 +136,74 @@ export default function ResizableSidebar() {
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDraggingOverTrash(false);
-    const docId = e.dataTransfer.getData('text/plain');
-    deleteDocument.mutate(docId);
+    try {
+      const docId = e.dataTransfer.getData('text/plain');
+      if (!docId) {
+        console.error("Ошибка при удалении: ID документа не найден");
+        return;
+      }
+      console.log("Удаление документа:", docId);
+      if (!deleteDocument.isPending) {
+        deleteDocument.mutate(docId);
+      }
+    } catch (error: unknown) {
+      console.error("Ошибка при обработке перетаскивания для удаления:", error);
+    }
   };
 
   const createNewDocument = () => {
-    createDocument.mutate({ title: `Новый документ ${documents.length + 1}` });
+    try {
+      const title = `Новый документ ${documents.length + 1}`;
+      console.log("Создаю новый документ:", title);
+      createDocument.mutate({ 
+        title,
+        content: "",
+      });
+    } catch (error: unknown) {
+      console.error("Ошибка при создании документа:", error);
+    }
   };
 
   const handleTogglePin = (docId: string) => {
-    const doc = documents.find(d => d.id === docId);
+    const doc = documents.find((d: Document) => d.id === docId);
     if (doc) {
       togglePin.mutate({ id: docId, isPinned: !doc.isPinned });
     }
   };
 
   const reorderDocuments = (draggedId: string, targetId: string) => {
-    const draggedDoc = documents.find(d => d.id === draggedId);
-    const targetDoc = documents.find(d => d.id === targetId);
-    
-    if (!draggedDoc || !targetDoc) return;
-
-    // Если перетаскиваем между разными секциями, меняем статус закрепления
-    if (draggedDoc.isPinned !== targetDoc.isPinned) {
-      togglePin.mutate({ id: draggedId, isPinned: targetDoc.isPinned });
-    } else {
-      // В пределах одной секции меняем порядок
-      const docs = draggedDoc.isPinned ? documents.filter(d => d.isPinned) : documents.filter(d => !d.isPinned);
-      const draggedIndex = docs.findIndex(d => d.id === draggedId);
-      const targetIndex = docs.findIndex(d => d.id === targetId);
+    try {
+      if (!draggedId || !targetId) {
+        console.error("Ошибка: ID документов не указаны");
+        return;
+      }
       
-      if (draggedIndex === -1 || targetIndex === -1) return;
-
-      const newDocs = [...docs];
-      const [removed] = newDocs.splice(draggedIndex, 1);
+      if (togglePin.isPending || updateOrder.isPending) {
+        return;
+      }
       
-      if (!removed) return;
+      const draggedDoc = documents.find((d: Document) => d.id === draggedId);
+      const targetDoc = documents.find((d: Document) => d.id === targetId);
       
-      newDocs.splice(targetIndex, 0, removed);
-
-      // Обновляем порядок всех документов в секции
-      newDocs.forEach((doc, index) => {
-        updateOrder.mutate({ id: doc.id, order: newDocs.length - index });
-      });
+      if (!draggedDoc || !targetDoc) {
+        console.error("Ошибка: документы не найдены", { draggedId, targetId });
+        return;
+      }
+  
+      if (draggedDoc.isPinned !== targetDoc.isPinned) {
+        console.log("Изменение закрепления при переносе между секциями:", { 
+          draggedId, 
+          targetId, 
+          newPinned: targetDoc.isPinned 
+        });
+        togglePin.mutate({ id: draggedId, isPinned: targetDoc.isPinned });
+      } else {
+        const newOrder = targetDoc.order ? targetDoc.order + 1 : 1;
+        console.log(`Обновляем порядок документа ${draggedId} на ${newOrder}`);
+        updateOrder.mutate({ id: draggedId, order: newOrder });
+      }
+    } catch (error: unknown) {
+      console.error("Ошибка при изменении порядка документов:", error);
     }
   };
 
@@ -207,11 +263,17 @@ export default function ResizableSidebar() {
                   </h2>
                 </div>
                 <div className="custom-scrollbar mt-2 h-[50vh] overflow-y-auto">
-                  <DocumentList 
-                    documents={documents} 
-                    onTogglePin={handleTogglePin}
-                    onReorder={reorderDocuments}
-                  />
+                  {isError ? (
+                    <div className="text-red-400 text-sm p-2">
+                      Ошибка загрузки документов. Обновите страницу.
+                    </div>
+                  ) : (
+                    <DocumentList 
+                      documents={documents} 
+                      onTogglePin={handleTogglePin}
+                      onReorder={reorderDocuments}
+                    />
+                  )}
                 </div>
               </div>
 

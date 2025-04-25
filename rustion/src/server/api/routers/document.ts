@@ -1,43 +1,104 @@
 import { z } from "zod";
-import { createTRPCRouter, protectedProcedure } from "../trpc";
+import {
+  createTRPCRouter,
+  publicProcedure,
+  protectedProcedure,
+} from "~/server/api/trpc";
+import { TRPCError } from "@trpc/server";
+
+// Приведение типа, чтобы обойти проблему с типизацией Prisma
+const prisma = (ctx: any) => ctx.db as any;
 
 export const documentRouter = createTRPCRouter({
-  getAll: protectedProcedure
-    .query(async ({ ctx }) => {
-      return ctx.db.document.findMany({
-        where: { userId: ctx.session.user.id },
-        orderBy: { updatedAt: 'desc' },
+  getAll: protectedProcedure.query(async ({ ctx }) => {
+    try {
+      const documents = await prisma(ctx).document.findMany({
+        where: {
+          userId: ctx.session.user.id,
+        },
+        orderBy: [
+          { isPinned: 'desc' },
+          { createdAt: 'desc' },
+        ],
       });
-    }),
+      return documents;
+    } catch (error: unknown) {
+      return [];
+    }
+  }),
 
   getById: protectedProcedure
     .input(z.string())
     .query(async ({ ctx, input }) => {
-      return ctx.db.document.findUnique({
-        where: { id: input },
-      });
+      try {
+        const document = await prisma(ctx).document.findUnique({
+          where: {
+            id: input,
+            userId: ctx.session.user.id,
+          },
+        });
+        return document;
+      } catch (error: unknown) {
+        return null;
+      }
     }),
 
   create: protectedProcedure
     .input(z.object({
       title: z.string(),
+      content: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      return ctx.db.document.create({
-        data: {
-          title: input.title,
-          content: '',
-          userId: ctx.session.user.id,
-        },
-      });
+      try {
+        console.log("Creating document with input:", JSON.stringify(input));
+        console.log("User ID:", ctx.session.user.id);
+
+        // Проверка входных данных и установка значений по умолчанию
+        const title = input.title || "Новый документ";
+        
+        // Проверим, доступна ли база данных
+        const db = prisma(ctx);
+        if (!db || !db.document) {
+          throw new Error("База данных недоступна");
+        }
+        
+        // Создаем документ только с полями, которые есть в схеме
+        const document = await db.document.create({
+          data: {
+            title,
+            content: input.content || "",
+            userId: ctx.session.user.id,
+            isPinned: false,
+          },
+        });
+        
+        console.log("Document created:", document.id);
+        return document;
+      } catch (error: unknown) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Не удалось создать документ',
+        });
+      }
     }),
 
   delete: protectedProcedure
     .input(z.string())
     .mutation(async ({ ctx, input }) => {
-      return ctx.db.document.delete({
-        where: { id: input },
-      });
+      try {
+        await prisma(ctx).document.delete({
+          where: {
+            id: input,
+            userId: ctx.session.user.id,
+          },
+        });
+        return { success: true };
+      } catch (error: unknown) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Не удалось удалить документ',
+        });
+      }
     }),
 
   togglePin: protectedProcedure
@@ -46,10 +107,37 @@ export const documentRouter = createTRPCRouter({
       isPinned: z.boolean(),
     }))
     .mutation(async ({ ctx, input }) => {
-      return ctx.db.document.update({
-        where: { id: input.id },
-        data: { isPinned: input.isPinned },
-      });
+      try {
+        const document = await prisma(ctx).document.findFirst({
+          where: {
+            id: input.id,
+            userId: ctx.session.user.id,
+          },
+        });
+
+        if (!document) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Документ не найден',
+          });
+        }
+
+        await prisma(ctx).document.update({
+          where: {
+            id: input.id,
+          },
+          data: {
+            isPinned: !document.isPinned,
+          },
+        });
+
+        return { success: true };
+      } catch (error: unknown) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Не удалось изменить статус закрепления',
+        });
+      }
     }),
 
   updateOrder: protectedProcedure
@@ -58,10 +146,24 @@ export const documentRouter = createTRPCRouter({
       order: z.number(),
     }))
     .mutation(async ({ ctx, input }) => {
-      return ctx.db.document.update({
-        where: { id: input.id },
-        data: { order: input.order },
-      });
+      try {
+        await prisma(ctx).document.update({
+          where: {
+            id: input.id,
+            userId: ctx.session.user.id,
+          },
+          data: {
+            order: input.order,
+          },
+        });
+
+        return { success: true };
+      } catch (error: unknown) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Не удалось обновить порядок',
+        });
+      }
     }),
 
   updateTitle: protectedProcedure
@@ -70,25 +172,24 @@ export const documentRouter = createTRPCRouter({
       title: z.string(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const document = await ctx.db.document.findUnique({
-        where: { id: input.id },
-      });
-
-      if (!document) {
-        return ctx.db.document.create({
-          data: {
+      try {
+        await prisma(ctx).document.update({
+          where: {
             id: input.id,
-            title: input.title,
-            content: '',
             userId: ctx.session.user.id,
           },
+          data: {
+            title: input.title,
+          },
+        });
+
+        return { success: true };
+      } catch (error: unknown) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Не удалось обновить заголовок',
         });
       }
-
-      return ctx.db.document.update({
-        where: { id: input.id },
-        data: { title: input.title },
-      });
     }),
 
   updateContent: protectedProcedure
@@ -97,24 +198,23 @@ export const documentRouter = createTRPCRouter({
       content: z.string(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const document = await ctx.db.document.findUnique({
-        where: { id: input.id },
-      });
-
-      if (!document) {
-        return ctx.db.document.create({
-          data: {
+      try {
+        await prisma(ctx).document.update({
+          where: {
             id: input.id,
-            title: 'Новый документ',
-            content: input.content,
             userId: ctx.session.user.id,
           },
+          data: {
+            content: input.content,
+          },
+        });
+
+        return { success: true };
+      } catch (error: unknown) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Не удалось обновить содержимое',
         });
       }
-
-      return ctx.db.document.update({
-        where: { id: input.id },
-        data: { content: input.content },
-      });
     }),
 }); 

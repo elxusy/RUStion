@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { FileText, Pin } from 'lucide-react';
 import { type RouterOutputs } from "~/trpc/shared";
@@ -17,7 +17,7 @@ const DocumentList: React.FC<DocumentListProps> = ({ documents, onTogglePin, onR
   const [dropTarget, setDropTarget] = useState<{ id: string; position: 'top' | 'bottom' } | null>(null);
 
   // Функция сортировки документов
-  const sortDocs = (a: Document, b: Document) => {
+  const sortDocs = useCallback((a: Document, b: Document) => {
     // Если у обоих есть order, сортируем по нему
     if (a.order !== undefined && b.order !== undefined) {
       return b.order - a.order;
@@ -27,16 +27,20 @@ const DocumentList: React.FC<DocumentListProps> = ({ documents, onTogglePin, onR
     if (b.order !== undefined) return 1;
     // Если ни у кого нет order, сортируем по дате создания
     return b.createdAt.getTime() - a.createdAt.getTime();
-  };
+  }, []);
 
-  // Разделяем и сортируем документы
-  const pinnedDocs = documents
-    .filter(doc => doc.isPinned)
-    .sort(sortDocs);
+  // Разделяем и сортируем документы с помощью useMemo
+  const { pinnedDocs, unpinnedDocs } = useMemo(() => {
+    const pinned = documents
+      .filter(doc => doc.isPinned)
+      .sort(sortDocs);
 
-  const unpinnedDocs = documents
-    .filter(doc => !doc.isPinned)
-    .sort(sortDocs);
+    const unpinned = documents
+      .filter(doc => !doc.isPinned)
+      .sort(sortDocs);
+      
+    return { pinnedDocs: pinned, unpinnedDocs: unpinned };
+  }, [documents, sortDocs]);
 
   const handleClick = (e: React.MouseEvent, docId: string) => {
     if (e.buttons === 1) return;
@@ -66,46 +70,31 @@ const DocumentList: React.FC<DocumentListProps> = ({ documents, onTogglePin, onR
     setDropTarget(null);
   };
 
-  const handleDrop = (e: React.DragEvent, targetId: string) => {
-    e.preventDefault();
-    const draggedDocId = e.dataTransfer.getData('text/plain');
+  const handleDrop = (targetId: string) => {
+    const draggedDocId = draggedId;
     
-    if (draggedDocId === targetId) return;
-
-    const draggedDoc = documents.find(d => d.id === draggedDocId);
-    const targetDoc = documents.find(d => d.id === targetId);
-
-    if (!draggedDoc || !targetDoc) return;
-
-    // Если перетаскиваем между разными секциями, меняем статус закрепления
-    if (draggedDoc.isPinned !== targetDoc.isPinned) {
-      onReorder(draggedDocId, targetId);
-    } else {
-      // В пределах одной секции меняем порядок
-      const docs = draggedDoc.isPinned ? pinnedDocs : unpinnedDocs;
-      const draggedIndex = docs.findIndex(d => d.id === draggedDocId);
-      const targetIndex = docs.findIndex(d => d.id === targetId);
-      
-      if (draggedIndex === -1 || targetIndex === -1) return;
-
-      const newDocs = [...docs];
-      const [removed] = newDocs.splice(draggedIndex, 1);
-      const insertAt = dropTarget?.position === 'bottom' ? targetIndex + 1 : targetIndex;
-      
-      if (removed) {
-        newDocs.splice(insertAt, 0, removed);
-        
-        // Обновляем порядок всех документов в секции
-        newDocs.forEach((doc, index) => {
-          doc.order = newDocs.length - index;
-        });
-      }
-
-      onReorder(draggedDocId, targetId);
-    }
-
+    // Очищаем состояния перед проверками, чтобы избежать лишних ререндеров
     setDraggedId(null);
     setDropTarget(null);
+
+    if (!draggedDocId || draggedDocId === targetId) {
+      return;
+    }
+
+    // Находим документы для проверки
+    const draggedDoc = documents.find(doc => doc.id === draggedDocId);
+    const targetDoc = documents.find(doc => doc.id === targetId);
+
+    // Проверяем, что оба документа существуют и имеют одинаковый статус закрепления
+    if (draggedDoc && targetDoc && draggedDoc.isPinned === targetDoc.isPinned) {
+      // Проверка, что позиция действительно изменилась
+      if (draggedDoc.order !== targetDoc.order) {
+        onReorder(draggedDocId, targetId);
+      }
+    } else {
+      // Разные статусы закрепления или документы не найдены - просто вызываем обработчик
+      onReorder(draggedDocId, targetId);
+    }
   };
 
   const renderDocument = (doc: Document) => (
@@ -116,8 +105,20 @@ const DocumentList: React.FC<DocumentListProps> = ({ documents, onTogglePin, onR
       onDragStart={(e) => handleDragStart(e, doc.id)}
       onDragOver={(e) => handleDragOver(e, doc.id)}
       onDragLeave={handleDragLeave}
-      onDrop={(e) => handleDrop(e, doc.id)}
-      className="relative"
+      onDrop={(e) => {
+        e.preventDefault();
+        // Используем только ID из dataTransfer, если draggedId не установлен
+        if (!draggedId) {
+          const dataId = e.dataTransfer.getData('text/plain');
+          if (dataId) {
+            setDraggedId(dataId);
+            handleDrop(doc.id);
+          }
+        } else {
+          handleDrop(doc.id);
+        }
+      }}
+      className={`${dropTarget && dropTarget.id === doc.id ? 'relative' : ''}`}
     >
       <div
         className={`group flex items-center gap-2 p-2 hover:bg-zinc-700 rounded-lg cursor-pointer select-none ${
@@ -140,10 +141,10 @@ const DocumentList: React.FC<DocumentListProps> = ({ documents, onTogglePin, onR
           <Pin className={`w-4 h-4 ${doc.isPinned ? 'text-blue-400' : 'text-zinc-400'}`} />
         </button>
       </div>
-      {dropTarget?.id === doc.id && (
+      {dropTarget && dropTarget.id === doc.id && (
         <div 
           className={`absolute left-0 right-0 h-0.5 bg-blue-400 ${
-            dropTarget.position === 'top' ? '-top-px' : '-bottom-px'
+            dropTarget?.position === 'top' ? '-top-px' : '-bottom-px'
           }`} 
         />
       )}
