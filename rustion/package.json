@@ -33,6 +33,7 @@
     "@trpc/server": "^11.0.0",
     "@types/lodash": "^4.17.16",
     "@types/nodemailer": "^6.4.17",
+    "@types/uuid": "^10.0.0",
     "clsx": "^2.1.1",
     "lodash": "^4.17.21",
     "lucide-react": "^0.487.0",
@@ -46,6 +47,7 @@
     "server-only": "^0.0.1",
     "superjson": "^2.2.1",
     "tailwind-merge": "^2.6.0",
+    "uuid": "^11.1.0",
     "zod": "^3.24.2"
   },
   "devDependencies": {

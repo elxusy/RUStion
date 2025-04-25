@@ -150,10 +150,22 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
     e.preventDefault();
     e.stopPropagation();
     
-    // Установим позицию меню рядом с курсором
+    // Получим размеры окна
+    const windowWidth = window.innerWidth;
+    const windowHeight = window.innerHeight;
+    
+    // Предполагаемая ширина и высота меню
+    const menuWidth = 280; // px
+    const menuHeight = 300; // px
+    
+    // Вычисляем позицию с учетом границ экрана
+    const left = Math.min(e.clientX, windowWidth - menuWidth - 20);
+    const top = Math.min(e.clientY + 10, windowHeight - menuHeight - 20);
+    
+    // Установим позицию меню
     setAddMenuPosition({
-      left: e.clientX,
-      top: e.clientY + 10
+      left,
+      top
     });
     
     // Если передан индекс, запомним его для вставки блока
@@ -403,6 +415,14 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
 
   return (
     <div className="document-editor w-full max-w-5xl mx-auto p-6 bg-zinc-900 text-zinc-200">
+      <style jsx global>{`
+        .empty-content[contenteditable=true]:empty:before {
+          content: attr(data-placeholder);
+          color: rgba(255, 255, 255, 0.3);
+          cursor: text;
+          font-style: italic;
+        }
+      `}</style>
       <div className="flex items-center justify-between gap-2 mb-8 pb-3 border-b border-zinc-700">
         <input
           type="text"
@@ -461,7 +481,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
         {isAddMenuOpen && (
           <div 
             ref={addMenuRef}
-            className="fixed mt-1 w-72 bg-zinc-800/95 backdrop-blur-sm rounded-lg shadow-xl border border-zinc-700/80 p-2 z-50"
+            className="fixed w-72 bg-zinc-800/95 backdrop-blur-sm rounded-lg shadow-xl border border-zinc-700/80 p-2 z-50 max-h-[70vh] overflow-y-auto"
             style={{ 
               top: addMenuPosition.top, 
               left: addMenuPosition.left,
