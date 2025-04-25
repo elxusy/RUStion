@@ -1,9 +1,8 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
 import { PlusCircle, Check, List, Calendar as CalendarIcon, Table, Layout, ChevronDown, Type, X } from 'lucide-react';
 import debounce from 'lodash/debounce';
-import SimpleTextEditor from './SimpleTextEditor';
 import ChecklistComponent from './ChecklistComponent';
 import type { ChecklistItem } from './ChecklistComponent';
 import CalendarComponent from './CalendarComponent';
@@ -12,12 +11,9 @@ import TableComponent from './TableComponent';
 import type { TableData } from './TableComponent';
 import DashboardComponent from './DashboardComponent';
 import type { TaskItem, ColumnInfo } from './DashboardComponent';
-
-export type DocumentBlock = {
-  id: string;
-  type: 'text' | 'checklist' | 'calendar' | 'table' | 'dashboard';
-  content: any;
-};
+import NotionTextBlock from './NotionTextBlock';
+import type { DocumentBlock } from './editorUtils';
+import { getDefaultContentForType, getBlockIcon, getBlockName } from './editorUtils';
 
 type DocumentEditorProps = {
   initialTitle: string;
@@ -42,7 +38,6 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
   const [addMenuPosition, setAddMenuPosition] = useState({ top: 0, left: 0 });
   const [activeBlockIndex, setActiveBlockIndex] = useState<number | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
   const [lastSavedContent, setLastSavedContent] = useState(initialContent);
   const [lastSavedBlocks, setLastSavedBlocks] = useState(initialBlocks);
   const addMenuRef = useRef<HTMLDivElement>(null);
@@ -73,8 +68,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
   const debouncedTitleChange = useCallback(
     debounce((newTitle: string) => {
       onTitleChange(newTitle);
-      setIsSaving(false);
-    }, 800),
+    }, 3000),
     [onTitleChange]
   );
 
@@ -82,8 +76,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
     debounce((newContent: string) => {
       onContentChange(newContent);
       setLastSavedContent(newContent);
-      setIsSaving(false);
-    }, 800),
+    }, 3000),
     [onContentChange]
   );
 
@@ -91,59 +84,29 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
     debounce((newBlocks: DocumentBlock[]) => {
       onBlocksChange?.(newBlocks);
       setLastSavedBlocks(newBlocks);
-      setIsSaving(false);
-    }, 800),
+    }, 3000),
     [onBlocksChange]
   );
 
-  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newTitle = e.target.value;
-    setTitle(newTitle);
-    setIsSaving(true);
-    debouncedTitleChange(newTitle);
-  };
-
-  const handleContentChange = (newContent: string) => {
-    if (newContent !== content) {
-      setContent(newContent);
-      setIsSaving(true);
-      
-      // Проверяем, изменилось ли содержимое относительно сохраненного
-      if (newContent !== lastSavedContent) {
-        debouncedContentChange(newContent);
-      } else {
-        setIsSaving(false);
+  // Универсальный обработчик изменений:
+  const handleChange = useCallback((patch: Partial<{ title: string; content: string; blocks: DocumentBlock[] }>) => {
+    if (patch.title !== undefined) {
+      setTitle(patch.title);
+      debouncedTitleChange(patch.title);
+    }
+    if (patch.content !== undefined) {
+      setContent(patch.content);
+      if (patch.content !== lastSavedContent) {
+        debouncedContentChange(patch.content);
       }
     }
-  };
-
-  // Обработка завершения сохранения контента
-  const handleContentSaved = (savedContent: string) => {
-    setLastSavedContent(savedContent);
-    setIsSaving(false);
-  };
-
-  const handleBlockChange = (id: string, blockContent: any) => {
-    const updatedBlocks = blocks.map(block => 
-      block.id === id ? { ...block, content: blockContent } : block
-    );
-    
-    setBlocks(updatedBlocks);
-    setIsSaving(true);
-    
-    // Проверяем, изменились ли блоки относительно сохраненных
-    if (JSON.stringify(updatedBlocks) !== JSON.stringify(lastSavedBlocks)) {
-      debouncedBlocksChange(updatedBlocks);
-    } else {
-      setIsSaving(false);
+    if (patch.blocks !== undefined) {
+      setBlocks(patch.blocks);
+      if (JSON.stringify(patch.blocks) !== JSON.stringify(lastSavedBlocks)) {
+        debouncedBlocksChange(patch.blocks);
+      }
     }
-  };
-
-  // Обработка завершения сохранения блоков
-  const handleBlocksSaved = (savedBlocks: DocumentBlock[]) => {
-    setLastSavedBlocks(savedBlocks);
-    setIsSaving(false);
-  };
+  }, [debouncedTitleChange, debouncedContentChange, debouncedBlocksChange, lastSavedContent, lastSavedBlocks]);
 
   // Открыть меню добавления блока с указанной позицией
   const openAddBlockMenu = (e: React.MouseEvent, index?: number) => {
@@ -199,8 +162,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
     }
     
     setBlocks(updatedBlocks);
-    setIsSaving(true);
-    debouncedBlocksChange(updatedBlocks);
+    handleChange({ blocks: updatedBlocks });
     setIsAddMenuOpen(false);
     setActiveBlockIndex(null);
   };
@@ -208,110 +170,90 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
   const handleRemoveBlock = (id: string) => {
     const updatedBlocks = blocks.filter(block => block.id !== id);
     setBlocks(updatedBlocks);
-    setIsSaving(true);
-    debouncedBlocksChange(updatedBlocks);
+    handleChange({ blocks: updatedBlocks });
   };
 
-  const getDefaultContentForType = (type: DocumentBlock['type']): any => {
-    switch (type) {
-      case 'checklist':
-        return [];
-      case 'calendar':
-        return { events: [] };
-      case 'table':
-        return { headers: ['Столбец 1', 'Столбец 2'], rows: [['', '']] };
-      case 'dashboard':
-        return { 
-          columns: [
-            { id: 'todo', title: 'К выполнению', color: '#1e293b' },
-            { id: 'in-progress', title: 'В процессе', color: '#0f172a' },
-            { id: 'done', title: 'Выполнено', color: '#14532d' },
-          ],
-          tasks: []
-        };
-      default:
-        return '';
+  // Выношу компонент для блока
+  const BlockView = memo(function BlockView({ block, index, openAddBlockMenu, blocks, handleChange }: {
+    block: DocumentBlock;
+    index: number;
+    openAddBlockMenu: (e: React.MouseEvent, index?: number) => void;
+    blocks: DocumentBlock[];
+    handleChange: (patch: Partial<{ title: string; content: string; blocks: DocumentBlock[] }>) => void;
+  }) {
+    if (block.type === 'notion-text') {
+      // Локальное состояние для текста
+      const [localValue, setLocalValue] = useState(block.content);
+      useEffect(() => {
+        if (block.content !== localValue) {
+          setLocalValue(block.content);
+        }
+      }, [block.content]);
+      // Debounce для handleChange наружу
+      const debouncedHandleChange = useRef(
+        debounce((val: string) => {
+          handleChange({ blocks: blocks.map((b, i) => i === index ? { ...b, content: val } : b) });
+        }, 3000)
+      ).current;
+      // Обработчик ввода
+      const handleLocalChange = (val: string) => {
+        setLocalValue(val);
+        debouncedHandleChange(val);
+      };
+      return (
+        <div className="mb-8 relative group">
+          <div className="block-toolbar absolute -left-8 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button 
+              onClick={(e) => openAddBlockMenu(e, index)}
+              className="flex items-center justify-center w-6 h-6 rounded-full bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-blue-400 transition-all"
+              title="Добавить блок"
+            >
+              <PlusCircle className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="block-header flex items-center justify-between mb-2 text-sm text-zinc-400">
+            <div className="flex items-center gap-1.5">
+              {getBlockIcon(block.type)}
+              <span>{getBlockName(block.type)}</span>
+            </div>
+            <button
+              onClick={() => handleChange({ blocks: blocks.filter((b, i) => i !== index) })}
+              className="p-1 opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-red-500 hover:bg-red-900/30 rounded-full transition-all"
+              title="Удалить блок"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="block-content">
+            <NotionTextBlock
+              value={localValue}
+              onChange={handleLocalChange}
+              placeholder="Введите текст..."
+            />
+          </div>
+        </div>
+      );
     }
-  };
-
-  const getBlockIcon = (type: DocumentBlock['type']) => {
-    switch (type) {
-      case 'checklist':
-        return (
-          <div className="w-6 h-6 flex items-center justify-center rounded-md bg-emerald-900/30">
-            <Check className="w-4 h-4 text-emerald-500" />
-          </div>
-        );
-      case 'calendar':
-        return (
-          <div className="w-6 h-6 flex items-center justify-center rounded-md bg-blue-900/30">
-            <CalendarIcon className="w-4 h-4 text-blue-400" />
-          </div>
-        );
-      case 'table':
-        return (
-          <div className="w-6 h-6 flex items-center justify-center rounded-md bg-purple-900/30">
-            <Table className="w-4 h-4 text-purple-500" />
-          </div>
-        );
-      case 'dashboard':
-        return (
-          <div className="w-6 h-6 flex items-center justify-center rounded-md bg-yellow-900/30">
-            <Layout className="w-4 h-4 text-yellow-500" />
-          </div>
-        );
-      default:
-        return (
-          <div className="w-6 h-6 flex items-center justify-center rounded-md bg-zinc-800">
-            <Type className="w-4 h-4 text-zinc-400" />
-          </div>
-        );
-    }
-  };
-
-  const getBlockName = (type: DocumentBlock['type']) => {
-    switch (type) {
-      case 'checklist':
-        return 'Чеклист';
-      case 'calendar':
-        return 'Календарь';
-      case 'table':
-        return 'Таблица';
-      case 'dashboard':
-        return 'Таск-менеджер';
-      default:
-        return 'Текст';
-    }
-  };
-
-  // Рендер верхней панели инструментов блока
-  const renderBlockToolbar = (block: DocumentBlock, index: number) => {
-    return (
-      <div className="block-toolbar absolute -left-8 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
-        <button 
-          onClick={(e) => openAddBlockMenu(e, index)}
-          className="flex items-center justify-center w-6 h-6 rounded-full bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-blue-400 transition-all"
-          title="Добавить блок"
-        >
-          <PlusCircle className="w-4 h-4" />
-        </button>
-      </div>
-    );
-  };
-
-  const renderBlock = (block: DocumentBlock, index: number) => {
     switch (block.type) {
       case 'checklist':
         return (
           <div className="mb-8 relative group">
-            {renderBlockToolbar(block, index)}
+            <div className="block-toolbar absolute -left-8 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button 
+                onClick={(e) => openAddBlockMenu(e, index)}
+                className="flex items-center justify-center w-6 h-6 rounded-full bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-blue-400 transition-all"
+                title="Добавить блок"
+              >
+                <PlusCircle className="w-4 h-4" />
+              </button>
+            </div>
             <div className="block-header flex items-center justify-between mb-2 text-sm text-zinc-400">
               <div className="flex items-center gap-1.5">
-                <Check className="w-4 h-4 text-emerald-500" />
-                <span>Чеклист</span>
+                {getBlockIcon(block.type)}
+                <span>{getBlockName(block.type)}</span>
               </div>
               <button
-                onClick={() => handleRemoveBlock(block.id)}
+                onClick={() => handleChange({ blocks: blocks.filter((b, i) => i !== index) })}
                 className="p-1 opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-red-500 hover:bg-red-900/30 rounded-full transition-all"
                 title="Удалить блок"
               >
@@ -321,23 +263,30 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
             <div className="block-content">
               <ChecklistComponent
                 initialItems={block.content}
-                onChange={(items) => handleBlockChange(block.id, items)}
+                onChange={(items) => handleChange({ blocks: blocks.map((b, i) => i === index ? { ...b, content: items } : b) })}
               />
             </div>
           </div>
         );
-      
       case 'calendar':
         return (
           <div className="mb-8 relative group">
-            {renderBlockToolbar(block, index)}
+            <div className="block-toolbar absolute -left-8 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button 
+                onClick={(e) => openAddBlockMenu(e, index)}
+                className="flex items-center justify-center w-6 h-6 rounded-full bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-blue-400 transition-all"
+                title="Добавить блок"
+              >
+                <PlusCircle className="w-4 h-4" />
+              </button>
+            </div>
             <div className="block-header flex items-center justify-between mb-2 text-sm text-zinc-400">
               <div className="flex items-center gap-1.5">
-                <CalendarIcon className="w-4 h-4 text-blue-400" />
-                <span>Календарь</span>
+                {getBlockIcon(block.type)}
+                <span>{getBlockName(block.type)}</span>
               </div>
               <button
-                onClick={() => handleRemoveBlock(block.id)}
+                onClick={() => handleChange({ blocks: blocks.filter((b, i) => i !== index) })}
                 className="p-1 opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-red-500 hover:bg-red-900/30 rounded-full transition-all"
                 title="Удалить блок"
               >
@@ -352,18 +301,25 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
             </div>
           </div>
         );
-      
       case 'table':
         return (
           <div className="mb-8 relative group">
-            {renderBlockToolbar(block, index)}
+            <div className="block-toolbar absolute -left-8 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button 
+                onClick={(e) => openAddBlockMenu(e, index)}
+                className="flex items-center justify-center w-6 h-6 rounded-full bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-blue-400 transition-all"
+                title="Добавить блок"
+              >
+                <PlusCircle className="w-4 h-4" />
+              </button>
+            </div>
             <div className="block-header flex items-center justify-between mb-2 text-sm text-zinc-400">
               <div className="flex items-center gap-1.5">
-                <Table className="w-4 h-4 text-purple-500" />
-                <span>Таблица</span>
+                {getBlockIcon(block.type)}
+                <span>{getBlockName(block.type)}</span>
               </div>
               <button
-                onClick={() => handleRemoveBlock(block.id)}
+                onClick={() => handleChange({ blocks: blocks.filter((b, i) => i !== index) })}
                 className="p-1 opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-red-500 hover:bg-red-900/30 rounded-full transition-all"
                 title="Удалить блок"
               >
@@ -373,23 +329,30 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
             <div className="block-content">
               <TableComponent
                 initialData={block.content}
-                onChange={(data) => handleBlockChange(block.id, data)}
+                onChange={(data) => handleChange({ blocks: blocks.map((b, i) => i === index ? { ...b, content: data } : b) })}
               />
             </div>
           </div>
         );
-      
       case 'dashboard':
         return (
           <div className="mb-8 relative group">
-            {renderBlockToolbar(block, index)}
+            <div className="block-toolbar absolute -left-8 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button 
+                onClick={(e) => openAddBlockMenu(e, index)}
+                className="flex items-center justify-center w-6 h-6 rounded-full bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-blue-400 transition-all"
+                title="Добавить блок"
+              >
+                <PlusCircle className="w-4 h-4" />
+              </button>
+            </div>
             <div className="block-header flex items-center justify-between mb-2 text-sm text-zinc-400">
               <div className="flex items-center gap-1.5">
-                <Layout className="w-4 h-4 text-yellow-500" />
-                <span>Таск-менеджер</span>
+                {getBlockIcon(block.type)}
+                <span>{getBlockName(block.type)}</span>
               </div>
               <button
-                onClick={() => handleRemoveBlock(block.id)}
+                onClick={() => handleChange({ blocks: blocks.filter((b, i) => i !== index) })}
                 className="p-1 opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-red-500 hover:bg-red-900/30 rounded-full transition-all"
                 title="Удалить блок"
               >
@@ -400,18 +363,15 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
               <DashboardComponent
                 initialColumns={block.content.columns}
                 initialTasks={block.content.tasks}
-                onChange={(columns, tasks) => 
-                  handleBlockChange(block.id, { columns, tasks })
-                }
+                onChange={(columns, tasks) => handleChange({ blocks: blocks.map((b, i) => i === index ? { ...b, content: { columns, tasks } } : b) })}
               />
             </div>
           </div>
         );
-      
       default:
         return null;
     }
-  };
+  });
 
   return (
     <div className="document-editor w-full max-w-5xl mx-auto p-6 bg-zinc-900 text-zinc-200">
@@ -427,16 +387,10 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
         <input
           type="text"
           value={title}
-          onChange={handleTitleChange}
+          onChange={(e) => handleChange({ title: e.target.value })}
           className="text-3xl font-bold w-full border-none outline-none focus:ring-0 py-2 text-zinc-200 bg-transparent"
           placeholder="Введите название документа..."
         />
-        {isSaving && (
-          <span className="text-sm text-zinc-500 animate-pulse flex items-center gap-1">
-            <span className="inline-block h-2 w-2 rounded-full bg-blue-500 opacity-75"></span>
-            Сохранение...
-          </span>
-        )}
       </div>
 
       <div className="space-y-6">
@@ -454,17 +408,10 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
               </button>
             </div>
           )}
-          <SimpleTextEditor
-            initialContent={content}
-            onSave={handleContentChange}
-            placeholder="Начните писать..."
-          />
         </div>
 
         {blocks.map((block, index) => (
-          <div key={block.id} className="mt-8">
-            {renderBlock(block, index)}
-          </div>
+          <BlockView key={block.id} block={block} index={index} openAddBlockMenu={openAddBlockMenu} blocks={blocks} handleChange={handleChange} />
         ))}
       </div>
 
@@ -491,7 +438,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
               Выберите тип блока
             </div>
             <div className="grid grid-cols-1 gap-1.5 p-1">
-              {['checklist', 'calendar', 'table', 'dashboard'].map((type) => (
+              {['notion-text','checklist','calendar','table','dashboard'].map((type) => (
                 <button
                   key={type}
                   onClick={() => handleAddBlockAtPosition(type as DocumentBlock['type'])}
@@ -501,9 +448,10 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                   <div>
                     <div className="font-medium text-zinc-200">{getBlockName(type as DocumentBlock['type'])}</div>
                     <div className="text-xs text-zinc-400">
+                      {type === 'notion-text' && 'Текст с форматированием (жирный, списки, ссылки и т.д.)'}
                       {type === 'checklist' && 'Список задач с отметками выполнения'}
                       {type === 'calendar' && 'Календарь с поддержкой событий'}
-                      {type === 'table' && 'Таблица для структурированных данных'}
+                      {type === 'table' && 'Табличные данные'}
                       {type === 'dashboard' && 'Канбан-доска для управления задачами'}
                     </div>
                   </div>
