@@ -108,20 +108,16 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
     }
   }, [debouncedTitleChange, debouncedContentChange, debouncedBlocksChange, lastSavedContent, lastSavedBlocks]);
 
-  // Открыть меню добавления блока с указанной позицией
   const openAddBlockMenu = (e: React.MouseEvent, index?: number) => {
     e.preventDefault();
     e.stopPropagation();
-    
-    // Получим размеры окна
+ 
     const windowWidth = window.innerWidth;
     const windowHeight = window.innerHeight;
     
-    // Предполагаемая ширина и высота меню
     const menuWidth = 280; // px
     const menuHeight = 300; // px
     
-    // Вычисляем позицию с учетом границ экрана
     const left = Math.min(e.clientX, windowWidth - menuWidth - 20);
     const top = Math.min(e.clientY + 10, windowHeight - menuHeight - 20);
     
@@ -173,7 +169,6 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
     handleChange({ blocks: updatedBlocks });
   };
 
-  // Выношу компонент для блока
   const BlockView = memo(function BlockView({ block, index, openAddBlockMenu, blocks, handleChange }: {
     block: DocumentBlock;
     index: number;
