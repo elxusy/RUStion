@@ -3,7 +3,7 @@ import { type DefaultSession, type NextAuthConfig } from "next-auth";
 import EmailProvider from "next-auth/providers/nodemailer";
 import { sendVerificationRequest } from "~/mailers/auth-mailer";
 
-import { db } from "~/server/db";
+import { prisma } from "~/server/db";
 
 /**
  * Module augmentation for `next-auth` types. Allows us to add custom properties to the `session`
@@ -38,7 +38,7 @@ export const authConfig = {
       sendVerificationRequest: sendVerificationRequest,
     })
   ],
-  adapter: PrismaAdapter(db),
+  adapter: PrismaAdapter(prisma),
   callbacks: {
     session: ({ session, user }) => ({
       ...session,

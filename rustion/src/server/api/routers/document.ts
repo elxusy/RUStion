@@ -6,7 +6,6 @@ import {
 } from "~/server/api/trpc";
 import { TRPCError } from "@trpc/server";
 
-// Приведение типа, чтобы обойти проблему с типизацией Prisma
 const prisma = (ctx: any) => ctx.db as any;
 
 export const documentRouter = createTRPCRouter({

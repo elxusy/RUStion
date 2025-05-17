@@ -1,13 +1,13 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
+import React, { useState, useEffect, useCallback, useRef, memo, forwardRef, useImperativeHandle } from 'react';
 import { PlusCircle, Check, List, Calendar as CalendarIcon, Table, Layout, ChevronDown, Type, X } from 'lucide-react';
 import debounce from 'lodash/debounce';
 import ChecklistComponent from './ChecklistComponent';
 import type { ChecklistItem } from './ChecklistComponent';
 import CalendarComponent from './CalendarComponent';
 import type { CalendarEvent } from './CalendarComponent';
-import TableComponent from './TableComponent';
+import TableComponent, { TableComponentHandle } from './TableComponent';
 import type { TableData } from './TableComponent';
 import DashboardComponent from './DashboardComponent';
 import type { TaskItem, ColumnInfo } from './DashboardComponent';
@@ -19,37 +19,50 @@ type DocumentEditorProps = {
   initialTitle: string;
   initialContent: string;
   initialBlocks?: DocumentBlock[];
-  onTitleChange: (title: string) => void;
-  onContentChange: (content: string) => void;
-  onBlocksChange?: (blocks: DocumentBlock[]) => void;
 };
 
-export const DocumentEditor: React.FC<DocumentEditorProps> = ({
+export type DocumentEditorHandle = {
+  getCurrentData: () => { title: string; content: string; blocks: DocumentBlock[] };
+  setCurrentData: (data: { title: string; content: string; blocks: DocumentBlock[] }) => void;
+};
+
+export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorProps>(function DocumentEditor({
   initialTitle,
   initialContent,
   initialBlocks = [],
-  onTitleChange,
-  onContentChange,
-  onBlocksChange,
-}) => {
+}, ref) {
   const [title, setTitle] = useState(initialTitle);
   const [content, setContent] = useState(initialContent);
   const [blocks, setBlocks] = useState<DocumentBlock[]>(initialBlocks);
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
   const [addMenuPosition, setAddMenuPosition] = useState({ top: 0, left: 0 });
   const [activeBlockIndex, setActiveBlockIndex] = useState<number | null>(null);
-  const [lastSavedContent, setLastSavedContent] = useState(initialContent);
-  const [lastSavedBlocks, setLastSavedBlocks] = useState(initialBlocks);
   const addMenuRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
+  const tableRefs = useRef<{ [blockId: string]: TableComponentHandle | null }>({});
 
   useEffect(() => {
     setTitle(initialTitle);
     setContent(initialContent);
     setBlocks(initialBlocks);
-    setLastSavedContent(initialContent);
-    setLastSavedBlocks(initialBlocks);
   }, [initialTitle, initialContent, initialBlocks]);
+
+  useImperativeHandle(ref, () => ({
+    getCurrentData: () => {
+      const updatedBlocks = blocks.map((block) => {
+        if (block.type === 'table' && tableRefs.current[block.id]) {
+          return { ...block, content: tableRefs.current[block.id]!.getCurrentData() };
+        }
+        return block;
+      });
+      return { title, content, blocks: updatedBlocks };
+    },
+    setCurrentData: (data) => {
+      setTitle(data.title);
+      setContent(data.content);
+      setBlocks(data.blocks);
+    },
+  }), [title, content, blocks]);
 
   // Обработчик клика вне меню добавления блоков
   useEffect(() => {
@@ -65,48 +78,18 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
     };
   }, []);
 
-  const debouncedTitleChange = useCallback(
-    debounce((newTitle: string) => {
-      onTitleChange(newTitle);
-    }, 3000),
-    [onTitleChange]
-  );
-
-  const debouncedContentChange = useCallback(
-    debounce((newContent: string) => {
-      onContentChange(newContent);
-      setLastSavedContent(newContent);
-    }, 3000),
-    [onContentChange]
-  );
-
-  const debouncedBlocksChange = useCallback(
-    debounce((newBlocks: DocumentBlock[]) => {
-      onBlocksChange?.(newBlocks);
-      setLastSavedBlocks(newBlocks);
-    }, 3000),
-    [onBlocksChange]
-  );
-
   // Универсальный обработчик изменений:
   const handleChange = useCallback((patch: Partial<{ title: string; content: string; blocks: DocumentBlock[] }>) => {
     if (patch.title !== undefined) {
       setTitle(patch.title);
-      debouncedTitleChange(patch.title);
     }
     if (patch.content !== undefined) {
       setContent(patch.content);
-      if (patch.content !== lastSavedContent) {
-        debouncedContentChange(patch.content);
-      }
     }
     if (patch.blocks !== undefined) {
       setBlocks(patch.blocks);
-      if (JSON.stringify(patch.blocks) !== JSON.stringify(lastSavedBlocks)) {
-        debouncedBlocksChange(patch.blocks);
-      }
     }
-  }, [debouncedTitleChange, debouncedContentChange, debouncedBlocksChange, lastSavedContent, lastSavedBlocks]);
+  }, []);
 
   // Открыть меню добавления блока с указанной позицией
   const openAddBlockMenu = (e: React.MouseEvent, index?: number) => {
@@ -183,17 +166,17 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
   }) {
     if (block.type === 'notion-text') {
       // Локальное состояние для текста
-      const [localValue, setLocalValue] = useState(block.content);
-      useEffect(() => {
+      const [localValue, setLocalValue] = React.useState(block.content);
+      React.useEffect(() => {
         if (block.content !== localValue) {
           setLocalValue(block.content);
         }
       }, [block.content]);
       // Debounce для handleChange наружу
-      const debouncedHandleChange = useRef(
+      const debouncedHandleChange = React.useRef(
         debounce((val: string) => {
           handleChange({ blocks: blocks.map((b, i) => i === index ? { ...b, content: val } : b) });
-        }, 3000)
+        }, 1000)
       ).current;
       // Обработчик ввода
       const handleLocalChange = (val: string) => {
@@ -302,6 +285,22 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
           </div>
         );
       case 'table':
+        // Локальное состояние для таблицы
+        const [localData, setLocalData] = React.useState(block.content);
+        React.useEffect(() => {
+          if (block.content !== localData) {
+            setLocalData(block.content);
+          }
+        }, [block.content]);
+        const debouncedHandleChangeTable = React.useRef(
+          debounce((val: any) => {
+            handleChange({ blocks: blocks.map((b, i) => i === index ? { ...b, content: val } : b) });
+          }, 1000)
+        ).current;
+        const handleTableChange = (val: any) => {
+          setLocalData(val);
+          debouncedHandleChangeTable(val);
+        };
         return (
           <div className="mb-8 relative group">
             <div className="block-toolbar absolute -left-8 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -328,8 +327,9 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
             </div>
             <div className="block-content">
               <TableComponent
-                initialData={block.content}
-                onChange={(data) => handleChange({ blocks: blocks.map((b, i) => i === index ? { ...b, content: data } : b) })}
+                ref={el => (tableRefs.current[block.id] = el)}
+                data={localData}
+                onChange={handleTableChange}
               />
             </div>
           </div>
@@ -463,6 +463,6 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
       </div>
     </div>
   );
-};
+});
 
 export default DocumentEditor; 

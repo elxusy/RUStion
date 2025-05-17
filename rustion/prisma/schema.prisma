@@ -53,8 +53,6 @@ model VerificationToken {
 
 model User {
     id            String    @id @default(cuid())
-    firstname     String?
-    surname       String?
     name          String?
     email         String?   @unique
     emailVerified DateTime?
@@ -62,70 +60,9 @@ model User {
     accounts      Account[]
     sessions      Session[]
     documents     Document[]
-
-    group    Group?  @relation(fields: [groupId], references: [id])
-    groupId  String?
-    subgroup Int     @default(1)
-
-    studentTask StudentsOnTasks[]
-    tutorTask   Squad[]
-    grade       Grade[]
-
     role    Role @default(USER)
 }
 
-model Group {
-    id    String @id @default(cuid())
-    name  String @unique
-    users User[]
-}
-
-// Лекции, лабы-пары, лабы-задания ...
-model TaskType {
-    id    String @id @default(cuid())
-    name  String @unique
-    tasks Task[]
-}
-
-model Task {
-    id    String @id @default(cuid())
-    name  String @unique
-    value Int    @default(1)
-
-    taskType   TaskType @relation(fields: [taskTypeId], references: [id])
-    taskTypeId String
-    squades    Squad[]
-    grades     Grade[]
-}
-
-model Squad {
-    id      String   @id @default(cuid())
-    task    Task     @relation(fields: [taskId], references: [id])
-    taskId  String
-    date    DateTime
-    tutor   User?    @relation(fields: [tutorId], references: [id])
-    tutorId String?
-
-    StudentsOnTasks StudentsOnTasks[]
-}
-
-model StudentsOnTasks {
-    student   User   @relation(fields: [studentId], references: [id])
-    studentId String
-    squad     Squad  @relation(fields: [squadId], references: [id], onDelete: Cascade)
-    squadId   String
-
-    @@id([studentId, squadId])
-}
-
-model Grade {
-    id        String @id @default(cuid())
-    task      Task   @relation(fields: [taskId], references: [id])
-    taskId    String
-    student   User   @relation(fields: [studentId], references: [id])
-    studentId String
-    value     Int
-}
 
 enum Role {
    USER

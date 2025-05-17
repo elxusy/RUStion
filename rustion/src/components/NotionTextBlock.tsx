@@ -218,6 +218,7 @@ const NotionTextBlock: React.FC<NotionTextBlockProps> = ({ value, onChange, plac
         class: 'prose prose-zinc max-w-none min-h-[32px] focus:outline-none relative',
       },
     },
+    immediatelyRender: false,
   });
 
   return (

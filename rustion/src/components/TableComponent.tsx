@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useImperativeHandle, forwardRef } from 'react';
 import { Trash2, Plus } from 'lucide-react';
 
 export type TableData = {
@@ -9,31 +9,26 @@ export type TableData = {
 };
 
 type TableComponentProps = {
-  initialData?: TableData;
+  data: TableData;
   onChange?: (data: TableData) => void;
 };
 
-const TableComponent: React.FC<TableComponentProps> = ({ 
-  initialData = { headers: ['Столбец 1', 'Столбец 2'], rows: [['', '']] },
-  onChange 
-}) => {
-  const [data, setData] = useState<TableData>(initialData);
+export type TableComponentHandle = {
+  getCurrentData: () => TableData;
+};
 
-  useEffect(() => {
-    setData(initialData);
-  }, [initialData]);
+const TableComponent = forwardRef<TableComponentHandle, TableComponentProps>(function TableComponent({ 
+  data,
+  onChange,
+}, ref) {
+  useImperativeHandle(ref, () => ({
+    getCurrentData: () => data,
+  }), [data]);
 
   const handleHeaderChange = (index: number, value: string) => {
     const newHeaders = [...data.headers];
     newHeaders[index] = value;
-    
-    const newData = {
-      ...data,
-      headers: newHeaders
-    };
-    
-    setData(newData);
-    onChange?.(newData);
+    onChange && onChange({ ...data, headers: newHeaders });
   };
 
   const handleCellChange = (rowIndex: number, colIndex: number, value: string) => {
@@ -42,67 +37,31 @@ const TableComponent: React.FC<TableComponentProps> = ({
       const newRow = [...newRows[rowIndex]];
       newRow[colIndex] = value;
       newRows[rowIndex] = newRow;
-      
-      const newData = {
-        ...data,
-        rows: newRows
-      };
-      
-      setData(newData);
-      onChange?.(newData);
+      onChange && onChange({ ...data, rows: newRows });
     }
   };
 
   const addColumn = () => {
     const newHeaders = [...data.headers, `Столбец ${data.headers.length + 1}`];
     const newRows = data.rows.map(row => [...row, '']);
-    
-    const newData = {
-      headers: newHeaders,
-      rows: newRows
-    };
-    
-    setData(newData);
-    onChange?.(newData);
+    onChange && onChange({ headers: newHeaders, rows: newRows });
   };
 
   const removeColumn = (index: number) => {
     if (data.headers.length <= 1) return;
-    
     const newHeaders = data.headers.filter((_, i) => i !== index);
     const newRows = data.rows.map(row => row.filter((_, i) => i !== index));
-    
-    const newData = {
-      headers: newHeaders,
-      rows: newRows
-    };
-    
-    setData(newData);
-    onChange?.(newData);
+    onChange && onChange({ headers: newHeaders, rows: newRows });
   };
 
   const addRow = () => {
     const newRow = Array(data.headers.length).fill('');
-    
-    const newData = {
-      ...data,
-      rows: [...data.rows, newRow]
-    };
-    
-    setData(newData);
-    onChange?.(newData);
+    onChange && onChange({ ...data, rows: [...data.rows, newRow] });
   };
 
   const removeRow = (index: number) => {
     if (data.rows.length <= 1) return;
-    
-    const newData = {
-      ...data,
-      rows: data.rows.filter((_, i) => i !== index)
-    };
-    
-    setData(newData);
-    onChange?.(newData);
+    onChange && onChange({ ...data, rows: data.rows.filter((_, i) => i !== index) });
   };
 
   return (
@@ -182,6 +141,6 @@ const TableComponent: React.FC<TableComponentProps> = ({
       </table>
     </div>
   );
-};
+});
 
 export default TableComponent; 

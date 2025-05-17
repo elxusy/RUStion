@@ -7,6 +7,7 @@ import { api } from "~/trpc/react";
 import DocumentEditor from '~/components/DocumentEditor';
 import type { DocumentBlock } from '~/components/editorUtils';
 import debounce from 'lodash/debounce';
+import type { DocumentEditorHandle } from '~/components/DocumentEditor';
 
 // Изменяем структуру данных документа
 type DocumentData = {
@@ -31,6 +32,9 @@ export default function DocumentPage() {
     const lastSavedData = useRef<DocumentData>({ title: '', text: '', blocks: [] });
     const isFirstLoad = useRef(true);
     const isSaving = useRef(false);
+    const [pendingSave, setPendingSave] = useState<DocumentData | null>(null);
+    const saveTimeout = useRef<NodeJS.Timeout | null>(null);
+    const editorRef = useRef<DocumentEditorHandle>(null);
 
     const utils = api.useUtils();
     const { data: document, isLoading, error, refetch } = api.document.getById.useQuery(id, {
@@ -77,41 +81,23 @@ export default function DocumentPage() {
             setDocumentData({ title, text, blocks });
             lastSavedData.current = { title, text, blocks };
             isFirstLoad.current = false;
+            // Устанавливаем данные в редактор
+            editorRef.current?.setCurrentData({ title, content: text, blocks });
         }
     }, [document, id]);
 
-    // Единый обработчик изменений
-    const handleDocumentChange = (patch: Partial<DocumentData>) => {
-        setDocumentData(prev => {
-            const next = { ...prev, ...patch };
-            // Сохраняем только если реально что-то изменилось
-            if (
-                next.title !== lastSavedData.current.title ||
-                next.text !== lastSavedData.current.text ||
-                JSON.stringify(next.blocks) !== JSON.stringify(lastSavedData.current.blocks)
-            ) {
-                saveDocument(next);
-            }
-            return next;
-        });
-    };
-
-    // Асинхронное автосохранение (теперь принимает nextData)
-    const saveDocument = useCallback(async (nextData?: DocumentData) => {
-        if (isSaving.current) return;
-        isSaving.current = true;
+    // Сохранение по кнопке
+    const handleSave = async () => {
+        if (!editorRef.current) return;
+        const { title, content: text, blocks } = editorRef.current.getCurrentData();
         setSaveStatus('saving');
-        const { title, text, blocks } = nextData || documentData;
         const serverData: ServerDocumentData = { textContent: text || '' };
         if (blocks.length > 0) serverData.blocksContent = JSON.stringify(blocks);
-        const textChanged = text !== lastSavedData.current.text;
-        const blocksChanged = JSON.stringify(blocks) !== JSON.stringify(lastSavedData.current.blocks);
-        const titleChanged = title !== lastSavedData.current.title;
         try {
-            if (titleChanged) {
+            if (title !== lastSavedData.current.title) {
                 await updateTitle.mutateAsync({ id, title });
             }
-            if (textChanged || blocksChanged) {
+            if (text !== lastSavedData.current.text || JSON.stringify(blocks) !== JSON.stringify(lastSavedData.current.blocks)) {
                 const contentToSave = JSON.stringify(serverData);
                 await updateContent.mutateAsync({ id, content: contentToSave });
             }
@@ -122,10 +108,8 @@ export default function DocumentPage() {
             await utils.document.getAll.invalidate();
         } catch {
             setSaveStatus('error');
-        } finally {
-            isSaving.current = false;
         }
-    }, [documentData, id, updateTitle, updateContent]);
+    };
 
     // UI для состояний загрузки и ошибок
     if (isLoading) {
@@ -174,20 +158,27 @@ export default function DocumentPage() {
                         <span className="text-red-500">Ошибка сохранения</span>
                     </>
                 )}
-                {saveStatus === 'saved' && !hasPendingChanges && (
+                {saveStatus === 'saved' && (
                     <>
                         <Save className="h-4 w-4 text-green-500" />
                         <span className="text-green-500">Сохранено</span>
                     </>
                 )}
             </div>
+            <div className="flex justify-end max-w-5xl mx-auto pt-8">
+                <button
+                    onClick={handleSave}
+                    className="flex items-center gap-2 px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow transition-colors"
+                >
+                    <Save className="w-5 h-5" />
+                    Сохранить
+                </button>
+            </div>
             <DocumentEditor
+                ref={editorRef}
                 initialTitle={documentData.title}
                 initialContent={documentData.text}
                 initialBlocks={documentData.blocks}
-                onTitleChange={title => handleDocumentChange({ title })}
-                onContentChange={text => handleDocumentChange({ text })}
-                onBlocksChange={blocks => handleDocumentChange({ blocks })}
             />
         </div>
     );

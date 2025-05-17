@@ -18,14 +18,21 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
   return (
     <html lang="ru">
-      <body className={`${inter.className} bg-zinc-900 text-zinc-100`}>
+      <body className={`${inter.className} bg-gray-900 text-zinc-100`}>
         <TRPCReactProvider>
-          <div className="flex min-h-screen">
-            {session?.user && <SidebarClientWrapper />}
-            <main className="flex-1 overflow-auto transition-all duration-200 ease-in-out ml-[280px]" id="main-content">
-              {children}
-            </main>
-          </div>
+          {session?.user ? (
+            <div className="flex min-h-screen">
+              <SidebarClientWrapper />
+              <main
+                className="flex-1 overflow-auto transition-all duration-200 ease-in-out ml-[280px]"
+                id="main-content"
+              >
+                {children}
+              </main>
+            </div>
+          ) : (
+            children
+          )}
         </TRPCReactProvider>
       </body>
     </html>
