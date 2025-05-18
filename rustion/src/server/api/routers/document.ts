@@ -51,17 +51,11 @@ export const documentRouter = createTRPCRouter({
       try {
         console.log("Creating document with input:", JSON.stringify(input));
         console.log("User ID:", ctx.session.user.id);
-
-        // Проверка входных данных и установка значений по умолчанию
         const title = input.title || "Новый документ";
-        
-        // Проверим, доступна ли база данных
         const db = prisma(ctx);
         if (!db || !db.document) {
           throw new Error("База данных недоступна");
         }
-        
-        // Создаем документ только с полями, которые есть в схеме
         const document = await db.document.create({
           data: {
             title,
@@ -70,7 +64,6 @@ export const documentRouter = createTRPCRouter({
             isPinned: false,
           },
         });
-        
         console.log("Document created:", document.id);
         return document;
       } catch (error: unknown) {

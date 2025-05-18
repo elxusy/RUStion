@@ -75,15 +75,13 @@ const DashboardComponent: React.FC<DashboardProps> = ({
   const [colorPickerTaskPosition, setColorPickerTaskPosition] = useState({ top: 0, left: 0 });
   const [columnColorPickerPosition, setColumnColorPickerPosition] = useState({ top: 0, left: 0 });
 
-  // Новые состояния для режима кисти
   const [isColorMode, setIsColorMode] = useState(false);
   const [activeColorClass, setActiveColorClass] = useState<string | null>(null);
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [palettePosition, setPalettePosition] = useState({ top: 0, left: 0 });
-  const [isColumnColorMode, setIsColumnColorMode] = useState(false); // Состояние для переключения режимов раскраски
-  const [activeTaskId, setActiveTaskId] = useState<string | null>(null); // Один активный ID вместо карты
+  const [isColumnColorMode, setIsColumnColorMode] = useState(false);
+  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
 
-  // Добавляем рефы для отслеживания кликов вне меню
   const colorPickerRef = useRef<HTMLDivElement>(null);
   const columnColorPickerRef = useRef<HTMLDivElement>(null);
   const paletteRef = useRef<HTMLDivElement>(null);
@@ -94,7 +92,6 @@ const DashboardComponent: React.FC<DashboardProps> = ({
   }, [initialColumns, initialTasks]);
 
   useEffect(() => {
-    // Создаем объект с полями ввода для каждой колонки
     const inputs: Record<string, string> = {};
     columns.forEach(col => {
       inputs[col.id] = '';
@@ -102,12 +99,9 @@ const DashboardComponent: React.FC<DashboardProps> = ({
     setTaskInputs(inputs);
   }, [columns]);
 
-  // Обработка клика вне меню
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      // Закрываем все меню при клике вне их
       if (isPaletteOpen || colorPickerOpen || columnColorPickerOpen) {
-        // Проверяем, был ли клик на элементе меню
         const target = e.target as HTMLElement;
         if (!target.closest('.color-menu')) {
           setIsPaletteOpen(false);
@@ -141,7 +135,6 @@ const DashboardComponent: React.FC<DashboardProps> = ({
     setColumns(updatedColumns);
     onChange?.(updatedColumns, tasks);
     
-    // Добавляем поле ввода для новой колонки
     setTaskInputs(prev => ({
       ...prev,
       [id]: ''
@@ -149,7 +142,6 @@ const DashboardComponent: React.FC<DashboardProps> = ({
   };
 
   const handleRemoveColumn = (id: string) => {
-    // Перемещаем все задачи из этой колонки в первую доступную колонку
     const firstColumn = columns.find(c => c.id !== id);
     
     let updatedTasks = [...tasks];
@@ -167,7 +159,6 @@ const DashboardComponent: React.FC<DashboardProps> = ({
     setTasks(updatedTasks);
     onChange?.(updatedColumns, updatedTasks);
     
-    // Удаляем поле ввода для удаленной колонки
     const newTaskInputs = { ...taskInputs };
     delete newTaskInputs[id];
     setTaskInputs(newTaskInputs);
@@ -183,7 +174,6 @@ const DashboardComponent: React.FC<DashboardProps> = ({
   };
 
   const handleColumnColorChange = (id: string, color: string) => {
-    // Проверка на корректный формат класса цвета
     if (!color.startsWith('from-')) {
       console.warn('Некорректный формат класса цвета для колонки:', color);
       return;
@@ -213,13 +203,12 @@ const DashboardComponent: React.FC<DashboardProps> = ({
       id: `task-${Date.now()}`,
       title: inputValue,
       column: columnId,
-      color: 'bg-slate-800' // Новый цвет по умолчанию
+      color: 'bg-slate-800'
     };
     
     const updatedTasks = [...tasks, newTask];
     setTasks(updatedTasks);
     
-    // Очищаем только поле ввода для конкретной колонки
     setTaskInputs(prev => ({
       ...prev,
       [columnId]: ''
@@ -244,7 +233,6 @@ const DashboardComponent: React.FC<DashboardProps> = ({
   };
 
   const handleTaskColorChange = (taskId: string, colorClass: string) => {
-    // Проверка на корректный формат класса цвета
     if (!colorClass.startsWith('bg-')) {
       console.warn('Некорректный формат класса цвета для задачи:', colorClass);
       return;
@@ -307,7 +295,6 @@ const DashboardComponent: React.FC<DashboardProps> = ({
     e.preventDefault();
     setIsPaletteOpen(!isPaletteOpen);
     
-    // Если закрываем палитру, выходим из режима кисти
     if (isPaletteOpen) {
       setIsColorMode(false);
       setActiveColorClass(null);
@@ -318,7 +305,6 @@ const DashboardComponent: React.FC<DashboardProps> = ({
     setActiveColorClass(colorClass);
     setIsColorMode(true);
     
-    // Анимация при выборе цвета
     const selectedColor = document.querySelector(`.color-option.${colorClass.replace(/bg-/, '')}`) as HTMLElement;
     if (selectedColor) {
       selectedColor.classList.add('color-selected-animation');
@@ -327,16 +313,13 @@ const DashboardComponent: React.FC<DashboardProps> = ({
       }, 500);
     }
     
-    // Добавляем небольшую задержку перед закрытием палитры для лучшего UX
     setTimeout(() => {
       setIsPaletteOpen(false);
     }, 200);
   };
 
-  // Функция для раскрашивания задач - исправленная версия
   const paintTask = (taskId: string) => {
     if (isColorMode && activeColorClass && !isColumnColorMode) {
-      // Находим DOM-элемент задачи для анимации
       const taskElement = document.getElementById(`task-${taskId}`);
       if (taskElement) {
         taskElement.classList.add('color-brush-apply');
@@ -345,17 +328,13 @@ const DashboardComponent: React.FC<DashboardProps> = ({
         }, 300);
       }
       
-      // Обновляем цвет задачи
       handleTaskColorChange(taskId, activeColorClass);
       
-      // Работаем только с текущей задачей, не устанавливаем глобальный activeTaskId
     }
   };
 
-  // Новая функция для раскрашивания колонок
   const paintColumn = (columnId: string) => {
     if (isColorMode && activeColorClass && isColumnColorMode) {
-      // Получаем имя цвета из класса activeColorClass (например, 'bg-indigo-600' -> 'indigo')
       const parts = activeColorClass.split('-');
       if (parts.length < 2) return;
       
@@ -364,7 +343,6 @@ const DashboardComponent: React.FC<DashboardProps> = ({
       
       const columnColorClass = `from-${colorPrefix}-950 to-${colorPrefix}-900`;
       
-      // Убираем анимацию и просто применяем цвет
       handleColumnColorChange(columnId, columnColorClass);
     }
   };
@@ -377,7 +355,6 @@ const DashboardComponent: React.FC<DashboardProps> = ({
 
   return (
     <div className="dashboard-component bg-zinc-900 rounded-xl border border-zinc-800 shadow-lg overflow-hidden" onClick={() => {
-      // Закрываем все меню при клике на дашборд
       setColorPickerOpen(null);
       setColumnColorPickerOpen(null);
       setIsPaletteOpen(false);

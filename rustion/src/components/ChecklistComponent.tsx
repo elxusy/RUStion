@@ -43,8 +43,6 @@ const ChecklistComponent: React.FC<ChecklistProps> = ({
     setItems(updatedItems);
     setNewItemText('');
     onChange?.(updatedItems);
-    
-    // Фокус на поле ввода после добавления
     inputRef.current?.focus();
   };
 
@@ -77,7 +75,6 @@ const ChecklistComponent: React.FC<ChecklistProps> = ({
     onChange?.(updatedItems);
   };
   
-  // Функционал для перетаскивания
   const handleDragStart = (id: string) => {
     setDraggedItem(id);
   };
@@ -95,13 +92,10 @@ const ChecklistComponent: React.FC<ChecklistProps> = ({
       const dragOverIndex = items.findIndex(item => item.id === dragOverItem);
       
       if (draggedIndex > -1 && dragOverIndex > -1) {
-        // Создаем копию массива и переставляем элементы
         const newItems = [...items];
         const removedItems = newItems.splice(draggedIndex, 1);
         
-        // Проверяем, что элемент был успешно удален
         if (removedItems.length > 0) {
-          // Гарантированно получаем элемент типа ChecklistItem
           const removed: ChecklistItem = removedItems[0] as ChecklistItem;
           newItems.splice(dragOverIndex, 0, removed);
           
@@ -115,7 +109,6 @@ const ChecklistComponent: React.FC<ChecklistProps> = ({
     setDragOverItem(null);
   };
   
-  // Расчет прогресса
   const completedCount = items.filter(item => item.completed).length;
   const totalCount = items.length;
   const progressPercentage = totalCount === 0 ? 0 : (completedCount / totalCount) * 100;

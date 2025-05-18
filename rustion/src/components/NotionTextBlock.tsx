@@ -58,7 +58,7 @@ const FloatingMenuBar: React.FC<{ editor: any }> = ({ editor }) => {
           const range = domSelection.getRangeAt(0);
           const rect = range.getBoundingClientRect();
           setCoords({
-            top: rect.top + window.scrollY - 48, // чуть выше выделения
+            top: rect.top + window.scrollY - 48,
             left: rect.left + window.scrollX + rect.width / 2,
           });
           setShow(true);
@@ -102,7 +102,7 @@ const FloatingMenuBar: React.FC<{ editor: any }> = ({ editor }) => {
         alignItems: 'center',
         transition: 'opacity 0.15s',
       }}
-      onMouseDown={e => e.preventDefault()} // чтобы не терять фокус
+      onMouseDown={e => e.preventDefault()}
     >
       <button type="button" onMouseDown={e => e.preventDefault()} onClick={() => editor.chain().focus().toggleBold().run()} className={editor.isActive('bold') ? 'text-blue-500' : ''}><Bold size={18} /></button>
       <button type="button" onMouseDown={e => e.preventDefault()} onClick={() => editor.chain().focus().toggleItalic().run()} className={editor.isActive('italic') ? 'text-blue-500' : ''}><Italic size={18} /></button>

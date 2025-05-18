@@ -7,8 +7,8 @@ import ChecklistComponent from './ChecklistComponent';
 import type { ChecklistItem } from './ChecklistComponent';
 import CalendarComponent from './CalendarComponent';
 import type { CalendarEvent } from './CalendarComponent';
-import TableComponent, { TableComponentHandle } from './TableComponent';
-import type { TableData } from './TableComponent';
+import TableComponent from './TableComponent';
+import type { TableComponentHandle } from './TableComponent';
 import DashboardComponent from './DashboardComponent';
 import type { TaskItem, ColumnInfo } from './DashboardComponent';
 import NotionTextBlock from './NotionTextBlock';
@@ -64,7 +64,6 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
     },
   }), [title, content, blocks]);
 
-  // Обработчик клика вне меню добавления блоков
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (addMenuRef.current && !addMenuRef.current.contains(e.target as Node)) {
@@ -78,7 +77,6 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
     };
   }, []);
 
-  // Универсальный обработчик изменений:
   const handleChange = useCallback((patch: Partial<{ title: string; content: string; blocks: DocumentBlock[] }>) => {
     if (patch.title !== undefined) {
       setTitle(patch.title);
@@ -91,30 +89,26 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
     }
   }, []);
 
-  // Открыть меню добавления блока с указанной позицией
   const openAddBlockMenu = (e: React.MouseEvent, index?: number) => {
     e.preventDefault();
     e.stopPropagation();
     
-    // Получим размеры окна
     const windowWidth = window.innerWidth;
     const windowHeight = window.innerHeight;
     
-    // Предполагаемая ширина и высота меню
-    const menuWidth = 280; // px
-    const menuHeight = 300; // px
+
+    const menuWidth = 280; 
+    const menuHeight = 300; 
     
-    // Вычисляем позицию с учетом границ экрана
+
     const left = Math.min(e.clientX, windowWidth - menuWidth - 20);
     const top = Math.min(e.clientY + 10, windowHeight - menuHeight - 20);
     
-    // Установим позицию меню
     setAddMenuPosition({
       left,
       top
     });
     
-    // Если передан индекс, запомним его для вставки блока
     if (index !== undefined) {
       setActiveBlockIndex(index);
     }
@@ -122,7 +116,6 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
     setIsAddMenuOpen(true);
   };
 
-  // Добавить блок в указанную позицию
   const handleAddBlockAtPosition = (type: DocumentBlock['type']) => {
     const newBlock: DocumentBlock = {
       id: `block-${Date.now()}`,
@@ -132,7 +125,6 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
     
     let updatedBlocks: DocumentBlock[];
     
-    // Если задан индекс, вставляем блок после него
     if (activeBlockIndex !== null) {
       updatedBlocks = [
         ...blocks.slice(0, activeBlockIndex + 1),
@@ -140,7 +132,6 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
         ...blocks.slice(activeBlockIndex + 1)
       ];
     } else {
-      // Иначе добавляем в конец
       updatedBlocks = [...blocks, newBlock];
     }
     
@@ -156,7 +147,6 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
     handleChange({ blocks: updatedBlocks });
   };
 
-  // Выношу компонент для блока
   const BlockView = memo(function BlockView({ block, index, openAddBlockMenu, blocks, handleChange }: {
     block: DocumentBlock;
     index: number;
@@ -165,20 +155,17 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
     handleChange: (patch: Partial<{ title: string; content: string; blocks: DocumentBlock[] }>) => void;
   }) {
     if (block.type === 'notion-text') {
-      // Локальное состояние для текста
       const [localValue, setLocalValue] = React.useState(block.content);
       React.useEffect(() => {
         if (block.content !== localValue) {
           setLocalValue(block.content);
         }
       }, [block.content]);
-      // Debounce для handleChange наружу
       const debouncedHandleChange = React.useRef(
         debounce((val: string) => {
           handleChange({ blocks: blocks.map((b, i) => i === index ? { ...b, content: val } : b) });
         }, 1000)
       ).current;
-      // Обработчик ввода
       const handleLocalChange = (val: string) => {
         setLocalValue(val);
         debouncedHandleChange(val);
@@ -285,7 +272,6 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
           </div>
         );
       case 'table':
-        // Локальное состояние для таблицы
         const [localData, setLocalData] = React.useState(block.content);
         React.useEffect(() => {
           if (block.content !== localData) {
@@ -327,7 +313,11 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
             </div>
             <div className="block-content">
               <TableComponent
-                ref={el => (tableRefs.current[block.id] = el)}
+                ref={(el) => {
+                  if (el) {
+                    tableRefs.current[block.id] = el;
+                  }
+                }}
                 data={localData}
                 onChange={handleTableChange}
               />

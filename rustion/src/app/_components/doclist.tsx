@@ -16,20 +16,16 @@ const DocumentList: React.FC<DocumentListProps> = ({ documents, onTogglePin, onR
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<{ id: string; position: 'top' | 'bottom' } | null>(null);
 
-  // Функция сортировки документов
+
   const sortDocs = useCallback((a: Document, b: Document) => {
-    // Если у обоих есть order, сортируем по нему
     if (a.order !== undefined && b.order !== undefined) {
       return b.order - a.order;
     }
-    // Если order есть только у одного, он идет первым
     if (a.order !== undefined) return -1;
     if (b.order !== undefined) return 1;
-    // Если ни у кого нет order, сортируем по дате создания
     return b.createdAt.getTime() - a.createdAt.getTime();
   }, []);
 
-  // Разделяем и сортируем документы с помощью useMemo
   const { pinnedDocs, unpinnedDocs } = useMemo(() => {
     const pinned = documents
       .filter(doc => doc.isPinned)
@@ -73,7 +69,7 @@ const DocumentList: React.FC<DocumentListProps> = ({ documents, onTogglePin, onR
   const handleDrop = (targetId: string) => {
     const draggedDocId = draggedId;
     
-    // Очищаем состояния перед проверками, чтобы избежать лишних ререндеров
+
     setDraggedId(null);
     setDropTarget(null);
 
@@ -81,18 +77,16 @@ const DocumentList: React.FC<DocumentListProps> = ({ documents, onTogglePin, onR
       return;
     }
 
-    // Находим документы для проверки
     const draggedDoc = documents.find(doc => doc.id === draggedDocId);
     const targetDoc = documents.find(doc => doc.id === targetId);
 
-    // Проверяем, что оба документа существуют и имеют одинаковый статус закрепления
+
     if (draggedDoc && targetDoc && draggedDoc.isPinned === targetDoc.isPinned) {
-      // Проверка, что позиция действительно изменилась
       if (draggedDoc.order !== targetDoc.order) {
         onReorder(draggedDocId, targetId);
       }
     } else {
-      // Разные статусы закрепления или документы не найдены - просто вызываем обработчик
+
       onReorder(draggedDocId, targetId);
     }
   };
@@ -107,7 +101,7 @@ const DocumentList: React.FC<DocumentListProps> = ({ documents, onTogglePin, onR
       onDragLeave={handleDragLeave}
       onDrop={(e) => {
         e.preventDefault();
-        // Используем только ID из dataTransfer, если draggedId не установлен
+
         if (!draggedId) {
           const dataId = e.dataTransfer.getData('text/plain');
           if (dataId) {
